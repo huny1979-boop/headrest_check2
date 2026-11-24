@@ -1,0 +1,3056 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+  <title>파렛트 헤드레스트 입·출고 관리 시스템</title>
+  <script src="https://cdn.tailwindcss.com/3.4.17"></script>
+  <script src="https://unpkg.com/lucide@0.460.0/dist/umd/lucide.min.js"></script>
+  <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Noto+Sans+KR:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --safe-top: env(safe-area-inset-top, 0px);
+      --safe-bottom: env(safe-area-inset-bottom, 0px);
+    }
+    * {
+      -webkit-tap-highlight-color: transparent;
+      box-sizing: border-box;
+    }
+    html, body {
+      font-family: 'Inter', 'Noto Sans KR', -apple-system, BlinkMacSystemFont, sans-serif;
+      background-color: #f1f5f9;
+      color: #0f172a;
+      margin: 0;
+      padding: 0;
+      min-height: 100dvh;
+      overflow-x: hidden;
+      touch-action: manipulation;
+    }
+    @media (max-width: 640px) {
+      input, select, textarea {
+        font-size: 16px !important;
+      }
+    }
+    .font-mono-code {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+    }
+    /* iOS Safari video & touch z-index safety */
+    #qr-reader {
+      position: relative;
+      width: 100%;
+      border-radius: 14px;
+      overflow: hidden;
+      background: #0f172a;
+    }
+    #qr-reader video {
+      width: 100% !important;
+      height: auto !important;
+      max-height: 280px;
+      object-fit: cover;
+      border-radius: 14px;
+      display: block;
+    }
+    #qr-reader__dashboard_section_csr button,
+    #qr-reader__dashboard_section_swaplink {
+      display: none !important;
+    }
+    /* Scan feedback flash */
+    @keyframes flashSuccess {
+      0% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7); }
+      50% { box-shadow: 0 0 0 14px rgba(16, 185, 129, 0); }
+      100% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
+    }
+    @keyframes flashError {
+      0% { box-shadow: 0 0 0 0 rgba(244, 63, 94, 0.7); }
+      50% { box-shadow: 0 0 0 14px rgba(244, 63, 94, 0); }
+      100% { box-shadow: 0 0 0 0 rgba(244, 63, 94, 0); }
+    }
+    .flash-ok { animation: flashSuccess 0.55s ease-out; }
+    .flash-err { animation: flashError 0.55s ease-out; }
+
+    /* Print styles for QR Label Sheet */
+    @media print {
+      body * { visibility: hidden !important; }
+      #print-qr-area, #print-qr-area * { visibility: visible !important; }
+      #print-qr-area {
+        position: absolute !important;
+        left: 0 !important;
+        top: 0 !important;
+        width: 100% !important;
+        background: #ffffff !important;
+        padding: 10mm !important;
+      }
+      .qr-label-card {
+        break-inside: avoid;
+        page-break-inside: avoid;
+        border: 1.5px solid #334155 !important;
+      }
+      .no-print { display: none !important; }
+    }
+  </style>
+</head>
+<body class="bg-slate-100 text-slate-900 antialiased">
+
+  <!-- Toast Container -->
+  <div id="toast-container" class="fixed top-4 right-4 left-4 sm:left-auto sm:w-96 z-[100] flex flex-col gap-2 pointer-events-none"></div>
+
+  <!-- =========================================================
+       LOGIN SCREEN (Authenticated User Gate)
+       ========================================================= -->
+  <div id="login-screen" class="min-h-dvh flex items-center justify-center p-4 bg-slate-900">
+    <div class="w-full max-w-md bg-white rounded-2xl shadow-2xl overflow-hidden border border-slate-200">
+      <div class="bg-slate-950 px-6 py-6 text-white">
+        <div class="flex items-center gap-3">
+          <div class="w-11 h-11 rounded-xl bg-blue-600 flex items-center justify-center shadow-lg shadow-blue-600/30">
+            <i data-lucide="package-check" class="w-6 h-6 text-white"></i>
+          </div>
+          <div>
+            <p class="text-xs font-semibold uppercase tracking-wider text-blue-400">SEOYON CNF · MES WMS</p>
+            <h1 class="text-xl font-bold tracking-tight">파렛트 헤드레스트 입·출고</h1>
+          </div>
+        </div>
+      </div>
+
+      <form id="login-form" class="p-6 space-y-4">
+        <div>
+          <label for="login-emp-id" class="block text-sm font-semibold text-slate-700 mb-1.5">작업자 사번 (ID)</label>
+          <input id="login-emp-id" type="text" autocomplete="username" autocapitalize="characters"
+            placeholder="예: OP01 또는 ADMIN"
+            class="w-full px-4 py-3 rounded-xl border border-slate-300 bg-slate-50 text-base font-medium focus:outline-none focus:ring-2 focus:ring-blue-600 focus:bg-white uppercase" required />
+        </div>
+        <div>
+          <label for="login-pin" class="block text-sm font-semibold text-slate-700 mb-1.5">인증 PIN 번호</label>
+          <input id="login-pin" type="password" inputmode="numeric" autocomplete="current-password"
+            placeholder="4자리 PIN 입력"
+            class="w-full px-4 py-3 rounded-xl border border-slate-300 bg-slate-50 text-base font-medium focus:outline-none focus:ring-2 focus:ring-blue-600 focus:bg-white" required />
+        </div>
+
+        <button type="submit"
+          class="w-full py-3.5 px-4 bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white font-bold rounded-xl shadow-md transition flex items-center justify-center gap-2 text-base">
+          <i data-lucide="shield-check" class="w-5 h-5"></i>
+          <span>인증 후 작업 시작</span>
+        </button>
+
+
+      </form>
+    </div>
+  </div>
+
+  <!-- =========================================================
+       MAIN APPLICATION SHELL
+       ========================================================= -->
+  <div id="app-shell" class="hidden min-h-dvh flex flex-col pb-[calc(4.75rem+var(--safe-bottom))] sm:pb-6">
+    <!-- Top Header -->
+    <header class="bg-slate-950 text-white sticky top-0 z-40 shadow-md">
+      <div class="max-w-6xl mx-auto px-3 sm:px-6 py-3 flex items-center justify-between gap-2">
+        <div class="flex items-center gap-2.5 min-w-0">
+          <div class="w-9 h-9 rounded-lg bg-blue-600 flex items-center justify-center shrink-0">
+            <i data-lucide="layers" class="w-5 h-5 text-white"></i>
+          </div>
+          <div class="min-w-0">
+            <h1 class="text-sm sm:text-base font-bold truncate">헤드레스트 파렛트 입·출고</h1>
+            <div class="flex items-center gap-2 text-[11px] text-slate-400">
+              <span id="header-user-badge" class="truncate font-medium text-slate-200"></span>
+              <span>·</span>
+              <button id="sync-status-btn" type="button" class="inline-flex items-center gap-1 hover:text-white transition">
+                <span id="sync-dot" class="w-2 h-2 rounded-full bg-amber-400"></span>
+                <span id="sync-label">로컬 동기화</span>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div class="flex items-center gap-1.5 sm:gap-2 shrink-0">
+          <button id="btn-top-total-inv" type="button"
+            data-admin-only="true" class="px-2.5 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-xs sm:text-sm font-bold flex items-center gap-1.5 transition shadow">
+            <i data-lucide="database" class="w-4 h-4"></i>
+            <span class="hidden sm:inline">전체 재고현황</span>
+            <span class="sm:hidden">전체재고</span>
+          </button>
+          <button id="btn-open-settings" type="button" title="설정 / 동기화 / 사용자 관리"
+            class="p-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 transition">
+            <i data-lucide="settings" class="w-4 h-4 sm:w-5 sm:h-5"></i>
+          </button>
+          <button id="btn-logout" type="button" title="로그아웃"
+            class="p-2 rounded-lg bg-slate-800 hover:bg-rose-600 text-slate-200 transition">
+            <i data-lucide="log-out" class="w-4 h-4 sm:w-5 sm:h-5"></i>
+          </button>
+        </div>
+      </div>
+
+      <!-- Desktop/Tablet Sub-Navigation -->
+      <nav class="bg-slate-900 border-t border-slate-800">
+        <div class="max-w-6xl mx-auto px-3 sm:px-6 flex items-center gap-1 overflow-x-auto no-scrollbar">
+          <button data-nav="work" class="nav-tab px-3.5 py-2.5 text-xs sm:text-sm font-bold border-b-2 border-blue-500 text-white whitespace-nowrap flex items-center gap-1.5">
+            <i data-lucide="scan-line" class="w-4 h-4"></i>
+            <span>파렛트 스캔·입출고</span>
+          </button>
+          <button data-nav="audit" class="nav-tab px-3.5 py-2.5 text-xs sm:text-sm font-semibold border-b-2 border-transparent text-slate-400 hover:text-white whitespace-nowrap flex items-center gap-1.5">
+            <i data-lucide="clipboard-check" class="w-4 h-4"></i>
+            <span>재고실사</span>
+          </button>
+          <button data-nav="total" data-admin-only="true" class="nav-tab px-3.5 py-2.5 text-xs sm:text-sm font-semibold border-b-2 border-transparent text-slate-400 hover:text-white whitespace-nowrap flex items-center gap-1.5">
+            <i data-lucide="clipboard-list" class="w-4 h-4"></i>
+            <span>전체 재고현황</span>
+          </button>
+          <button data-nav="qrgen" data-admin-only="true" class="nav-tab px-3.5 py-2.5 text-xs sm:text-sm font-semibold border-b-2 border-transparent text-slate-400 hover:text-white whitespace-nowrap flex items-center gap-1.5">
+            <i data-lucide="qr-code" class="w-4 h-4"></i>
+            <span>파렛트 QR 제작</span>
+          </button>
+          <button data-nav="logs" data-admin-only="true" class="nav-tab px-3.5 py-2.5 text-xs sm:text-sm font-semibold border-b-2 border-transparent text-slate-400 hover:text-white whitespace-nowrap flex items-center gap-1.5">
+            <i data-lucide="history" class="w-4 h-4"></i>
+            <span>입출고 이력</span>
+          </button>
+        </div>
+      </nav>
+    </header>
+
+    <!-- Main Content Container -->
+    <main class="flex-1 max-w-6xl w-full mx-auto px-3 sm:px-6 py-4 space-y-4">
+
+      <!-- =====================================================
+           VIEW 1: WORKSPACE (PALLET SCAN -> IN / OUT / STOCK)
+           ===================================================== -->
+      <section id="view-work" class="space-y-4">
+        <!-- Step 1: Pallet Identification & Scanner Mode Selector -->
+        <div id="pallet-select-card" class="bg-white rounded-2xl shadow-sm border border-slate-200 p-4 sm:p-5 space-y-4">
+          <!-- Direct Outbound Quick Mode Bar -->
+          <div class="rounded-xl bg-amber-50 border border-amber-200 p-3 flex flex-wrap items-center justify-between gap-2">
+            <div class="text-xs text-amber-900">
+              <span class="font-bold">빠른 출고:</span> 파렛트 스캔 없이 제품(DataMatrix)만 스캔하면 품번/LOT를 찾아 자동 출고됩니다.
+            </div>
+            <button id="btn-direct-out" type="button"
+              class="px-3.5 py-2 rounded-xl bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold flex items-center gap-1.5 shadow-sm transition shrink-0">
+              <i data-lucide="arrow-up-from-line" class="w-4 h-4"></i>
+              <span>바로 출고 (제품만 스캔)</span>
+            </button>
+          </div>
+
+          <div class="flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-blue-50 text-blue-700 text-xs font-bold">STEP 1</span>
+              <h2 class="text-base sm:text-lg font-bold text-slate-900 mt-1">파렛트 QR코드 스캔 (입고·재고 조회)</h2>
+            </div>
+            <!-- Scan Input Method Switcher (iOS Keyboard Freeze Fix!) -->
+            <div class="inline-flex rounded-xl bg-slate-100 p-1 border border-slate-200">
+              <button type="button" data-scan-mode="camera" class="scan-mode-btn px-2.5 py-1.5 rounded-lg text-xs font-bold bg-white text-blue-700 shadow-sm flex items-center gap-1">
+                <i data-lucide="camera" class="w-3.5 h-3.5"></i>
+                <span>카메라</span>
+              </button>
+              <button type="button" data-scan-mode="hid" class="scan-mode-btn px-2.5 py-1.5 rounded-lg text-xs font-semibold text-slate-600 flex items-center gap-1">
+                <i data-lucide="wifi" class="w-3.5 h-3.5"></i>
+                <span>무선스캐너</span>
+              </button>
+              <button type="button" data-scan-mode="manual" class="scan-mode-btn px-2.5 py-1.5 rounded-lg text-xs font-semibold text-slate-600 flex items-center gap-1">
+                <i data-lucide="keyboard" class="w-3.5 h-3.5"></i>
+                <span>수동입력</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- Active Pallet Banner (shown once a pallet is selected) -->
+          <div id="active-pallet-banner" class="hidden rounded-xl bg-slate-900 text-white p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div class="flex items-center gap-3">
+              <div class="w-12 h-12 rounded-xl bg-blue-600 flex items-center justify-center font-mono-code font-extrabold text-lg shrink-0">
+                PLT
+              </div>
+              <div>
+                <div class="flex items-center gap-2">
+                  <span id="banner-pallet-id" class="text-xl font-extrabold font-mono-code tracking-tight">PLT-001</span>
+                  <span id="banner-pallet-qty" class="px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 text-xs font-bold">적재 0 EA</span>
+                </div>
+                <p id="banner-pallet-meta" class="text-xs text-slate-400 mt-0.5">작업 대기중</p>
+              </div>
+            </div>
+            <button id="btn-change-pallet" type="button"
+              class="px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-xs font-bold text-slate-200 flex items-center justify-center gap-1.5 transition">
+              <i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i>
+              <span>다른 파렛트 스캔</span>
+            </button>
+          </div>
+
+          <!-- Requirement 2: 3 Action Buttons (입고, 출고, 재고) -->
+          <div id="pallet-action-buttons" class="hidden grid grid-cols-3 gap-2.5 sm:gap-4">
+            <button id="btn-mode-in" type="button"
+              class="action-mode-btn active:scale-95 min-h-[88px] group py-4 px-2 sm:px-3 rounded-2xl border-2 border-emerald-200 bg-emerald-50 hover:bg-emerald-600 hover:border-emerald-600 text-emerald-800 hover:text-white transition flex flex-col items-center justify-center gap-1.5 shadow-sm">
+              <i data-lucide="arrow-down-to-line" class="w-7 h-7"></i>
+              <span class="text-sm sm:text-base font-extrabold">입고</span>
+              <span class="text-[11px] opacity-80">DataMatrix 스캔</span>
+            </button>
+            <button id="btn-mode-out" type="button"
+              class="action-mode-btn active:scale-95 min-h-[88px] group py-4 px-2 sm:px-3 rounded-2xl border-2 border-amber-200 bg-amber-50 hover:bg-amber-600 hover:border-amber-600 text-amber-800 hover:text-white transition flex flex-col items-center justify-center gap-1.5 shadow-sm">
+              <i data-lucide="arrow-up-from-line" class="w-7 h-7"></i>
+              <span class="text-sm sm:text-base font-extrabold">출고</span>
+              <span class="text-[11px] opacity-80">DataMatrix 스캔</span>
+            </button>
+            <button id="btn-mode-stock" type="button"
+              class="action-mode-btn active:scale-95 min-h-[88px] group py-4 px-2 sm:px-3 rounded-2xl border-2 border-blue-200 bg-blue-50 hover:bg-blue-600 hover:border-blue-600 text-blue-800 hover:text-white transition flex flex-col items-center justify-center gap-1.5 shadow-sm">
+              <i data-lucide="boxes" class="w-7 h-7"></i>
+              <span class="text-sm sm:text-base font-extrabold">재고</span>
+              <span class="text-[11px] opacity-80">품번·LOT 현황</span>
+            </button>
+          </div>
+
+          <!-- Scanner Panel (Shared for Pallet QR & Headrest DataMatrix) -->
+          <div id="scanner-panel" class="rounded-2xl border border-slate-200 bg-slate-50 p-3.5 sm:p-4 space-y-3">
+            <div class="flex flex-wrap items-center justify-between gap-2">
+              <div class="flex items-center gap-2">
+                <span id="scan-target-badge" class="px-2.5 py-1 rounded-lg bg-slate-900 text-white text-xs font-bold">파렛트 QR 스캔 대기</span>
+                <span id="scan-sub-hint" class="text-xs text-slate-500">파렛트 부착 QR코드를 스캔하세요</span>
+              </div>
+              <button id="btn-toggle-camera" type="button"
+                class="px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold flex items-center gap-1.5 transition">
+                <i data-lucide="video" class="w-3.5 h-3.5"></i>
+                <span id="camera-btn-label">카메라 켜기</span>
+              </button>
+            </div>
+
+            <!-- Camera View -->
+            <div id="camera-container" class="hidden space-y-2">
+              <div id="qr-reader"></div>
+              <p class="text-[11px] text-slate-500 text-center">
+                iOS Safari / Android Chrome 지원 · QR코드 및 DataMatrix 2D 바코드를 사각형 안에 맞춰주세요.
+              </p>
+            </div>
+
+            <!-- HID Wireless Scanner View (iOS Keyboard-Safe) -->
+            <div id="hid-container" class="hidden rounded-xl bg-slate-900 text-white p-4 space-y-2">
+              <div class="flex items-center justify-between">
+                <div class="flex items-center gap-2">
+                  <span class="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                  <span class="text-sm font-bold">무선 블루투스/HID 스캐너 수신 대기중</span>
+                </div>
+                <span class="text-[11px] text-slate-400 font-mono-code">ENTER 자동인식</span>
+              </div>
+              <p class="text-xs text-slate-300">
+                iOS 자판 먹통 방지를 위해 강제 포커스 잠금을 사용하지 않습니다. 무선 스캐너로 바로 스캔하거나 아래 입력창을 탭해 사용하세요.
+              </p>
+              <input id="hid-capture-input" type="text" inputmode="none" autocomplete="off"
+                placeholder="무선 스캐너 리딩 대기 (여기를 탭하지 않아도 전역 수신 가능)"
+                class="w-full px-3 py-2.5 rounded-lg bg-slate-800 border border-slate-700 text-emerald-300 font-mono-code text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500" />
+            </div>
+
+            <!-- Manual / Test Input View (Always works on iOS/Android virtual keyboard) -->
+            <form id="manual-scan-form" class="flex gap-2">
+              <input id="manual-scan-input" type="text" inputmode="text" autocomplete="off"
+                placeholder="바코드 직접 입력 (예: PLT-001 또는 품번|LOT|시리얼)"
+                class="flex-1 min-w-0 px-3.5 py-2.5 rounded-xl border border-slate-300 bg-white text-sm font-mono-code focus:outline-none focus:ring-2 focus:ring-blue-600" />
+              <button type="submit"
+                class="px-4 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-sm font-bold shrink-0 transition">
+                입력
+              </button>
+            </form>
+
+            <!-- Quick Test Buttons (For immediate verification without physical scanner) -->
+            <div class="pt-1 border-t border-slate-200/80 flex flex-wrap items-center gap-1.5">
+              <span class="text-[11px] font-semibold text-slate-500 mr-1">빠른 테스트:</span>
+              <button type="button" data-quick-scan="PLT-001" class="quick-scan-chip px-2 py-1 rounded-md bg-white border border-slate-300 hover:bg-slate-100 text-[11px] font-mono-code font-semibold text-slate-700">PLT-001</button>
+              <button type="button" data-quick-scan="PLT-002" class="quick-scan-chip px-2 py-1 rounded-md bg-white border border-slate-300 hover:bg-slate-100 text-[11px] font-mono-code font-semibold text-slate-700">PLT-002</button>
+              <button type="button" id="btn-sim-dm-ok" class="px-2 py-1 rounded-md bg-emerald-50 border border-emerald-200 hover:bg-emerald-100 text-[11px] font-semibold text-emerald-800">+ 샘플 헤드레스트 DataMatrix 스캔</button>
+            </div>
+          </div>
+
+          <!-- Last Scan Result Banner -->
+          <div id="last-scan-result" class="hidden rounded-xl p-3.5 border flex items-start gap-3">
+            <div id="last-scan-icon" class="mt-0.5 shrink-0"></div>
+            <div class="min-w-0 flex-1">
+              <p id="last-scan-title" class="text-sm font-bold"></p>
+              <p id="last-scan-desc" class="text-xs mt-0.5 font-mono-code break-all"></p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Pallet-Specific Inventory Panel (Requirement 5: Shown when 재고 button clicked) -->
+        <div id="pallet-stock-panel" class="hidden bg-white rounded-2xl shadow-sm border border-slate-200 p-4 sm:p-5 space-y-4">
+          <div class="flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <h3 class="text-base sm:text-lg font-bold text-slate-900 flex items-center gap-2">
+                <i data-lucide="boxes" class="w-5 h-5 text-blue-600"></i>
+                <span><span id="pallet-stock-title-id" class="font-mono-code text-blue-700">PLT-001</span> 품번·LOT별 재고현황</span>
+              </h3>
+              <p class="text-xs text-slate-500 mt-0.5">현재 이 파렛트에 적입된 헤드레스트 품번 및 LOT 상세 내역입니다.</p>
+            </div>
+            <button id="btn-export-pallet-xlsx" type="button"
+              class="px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs sm:text-sm font-bold flex items-center gap-1.5 transition shadow-sm">
+              <i data-lucide="file-spreadsheet" class="w-4 h-4"></i>
+              <span>이 파렛트 엑셀 다운로드</span>
+            </button>
+          </div>
+
+          <div class="overflow-x-auto rounded-xl border border-slate-200">
+            <table class="w-full text-left border-collapse text-xs sm:text-sm">
+              <thead class="bg-slate-900 text-white">
+                <tr>
+                  <th class="px-3 py-2.5 font-bold">품번 (Part No.)</th>
+                  <th class="px-3 py-2.5 font-bold">차종 / 품명</th>
+                  <th class="px-3 py-2.5 font-bold">LOT 번호</th>
+                  <th class="px-3 py-2.5 font-bold text-right">수량</th>
+                  <th class="px-3 py-2.5 font-bold">최근 입고</th>
+                </tr>
+              </thead>
+              <tbody id="pallet-stock-tbody" class="divide-y divide-slate-200 bg-white"></tbody>
+            </table>
+          </div>
+
+          <!-- Individual Serials in this Pallet -->
+          <details class="rounded-xl border border-slate-200 bg-slate-50 p-3">
+            <summary class="text-xs font-bold text-slate-700 cursor-pointer select-none">
+              개별 시리얼(DataMatrix) 목록 보기 (<span id="pallet-serial-count">0</span>건)
+            </summary>
+            <div id="pallet-serial-list" class="mt-2.5 max-h-56 overflow-y-auto divide-y divide-slate-200 text-xs font-mono-code"></div>
+          </details>
+        </div>
+
+        <!-- Quick Pallet Grid Overview -->
+        <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-4 sm:p-5 space-y-3">
+          <div class="flex items-center justify-between">
+            <h3 class="text-sm sm:text-base font-bold text-slate-900">전체 파렛트 현황 (터치하여 선택)</h3>
+            <span id="pallet-grid-summary" class="text-xs font-semibold text-slate-500"></span>
+          </div>
+          <div id="pallet-cards-grid" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-2.5"></div>
+        </div>
+      </section>
+
+      <!-- =====================================================
+           VIEW 5: PHYSICAL INVENTORY AUDIT (재고실사)
+           ===================================================== -->
+      <section id="view-audit" class="hidden space-y-4">
+        <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-4 sm:p-5 space-y-4">
+          <div class="flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-indigo-50 text-indigo-700 text-xs font-bold">재고실사 모드</span>
+              <h2 class="text-base sm:text-lg font-bold text-slate-900 mt-1">전체 파렛트 실사 스캔</h2>
+              <p class="text-xs text-slate-500">파렛트 번호 스캔 후 적입 품목을 연속 스캔하세요. 다음 파렛트를 스캔할 때까지 현재 파렛트로 자동 등록됩니다.</p>
+            </div>
+            <div class="inline-flex rounded-xl bg-slate-100 p-1 border border-slate-200">
+              <button type="button" data-audit-scan-mode="camera" class="audit-scan-mode-btn px-2.5 py-1.5 rounded-lg text-xs font-bold bg-white text-indigo-700 shadow-sm flex items-center gap-1">
+                <i data-lucide="camera" class="w-3.5 h-3.5"></i>
+                <span>카메라</span>
+              </button>
+              <button type="button" data-audit-scan-mode="hid" class="audit-scan-mode-btn px-2.5 py-1.5 rounded-lg text-xs font-semibold text-slate-600 flex items-center gap-1">
+                <i data-lucide="wifi" class="w-3.5 h-3.5"></i>
+                <span>무선스캐너</span>
+              </button>
+              <button type="button" data-audit-scan-mode="manual" class="audit-scan-mode-btn px-2.5 py-1.5 rounded-lg text-xs font-semibold text-slate-600 flex items-center gap-1">
+                <i data-lucide="keyboard" class="w-3.5 h-3.5"></i>
+                <span>수동입력</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- Current Audit Pallet Banner -->
+          <div id="audit-pallet-banner" class="rounded-xl bg-indigo-950 text-white p-4 flex flex-wrap items-center justify-between gap-3">
+            <div class="flex items-center gap-3">
+              <div class="w-11 h-11 rounded-xl bg-indigo-600 flex items-center justify-center font-mono-code font-extrabold text-sm shrink-0">실사</div>
+              <div>
+                <p class="text-[11px] text-indigo-300 font-semibold">현재 자동 등록 대상 파렛트</p>
+                <p id="audit-current-pallet" class="text-lg sm:text-xl font-extrabold font-mono-code">미지정 (파렛트 QR을 먼저 스캔하세요)</p>
+              </div>
+            </div>
+            <div class="text-right">
+              <p class="text-[11px] text-indigo-300">실사 스캔 누적</p>
+              <p id="audit-scanned-count" class="text-lg font-extrabold text-emerald-400">0 EA</p>
+            </div>
+          </div>
+
+          <!-- Audit Scanner Panel -->
+          <div class="rounded-2xl border border-slate-200 bg-slate-50 p-3.5 sm:p-4 space-y-3">
+            <div class="flex flex-wrap items-center justify-between gap-2">
+              <span id="audit-scan-hint" class="text-xs font-bold text-slate-700">1) 파렛트 QR 스캔 → 2) 헤드레스트 DataMatrix 연속 스캔</span>
+              <button id="btn-audit-toggle-camera" type="button"
+                class="px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold flex items-center gap-1.5 transition">
+                <i data-lucide="video" class="w-3.5 h-3.5"></i>
+                <span id="audit-camera-btn-label">카메라 켜기</span>
+              </button>
+            </div>
+
+            <div id="audit-camera-container" class="hidden space-y-2">
+              <div id="audit-qr-reader" class="rounded-xl overflow-hidden bg-slate-900"></div>
+            </div>
+
+            <div id="audit-hid-container" class="hidden rounded-xl bg-slate-900 text-white p-3.5 space-y-1.5">
+              <div class="flex items-center gap-2">
+                <span class="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                <span class="text-xs sm:text-sm font-bold">재고실사 무선스캐너 수신 대기중</span>
+              </div>
+              <input id="audit-hid-input" type="text" inputmode="none" autocomplete="off"
+                placeholder="무선 스캐너 리딩 대기"
+                class="w-full px-3 py-2 rounded-lg bg-slate-800 border border-slate-700 text-emerald-300 font-mono-code text-sm" />
+            </div>
+
+            <form id="audit-manual-form" class="flex gap-2">
+              <input id="audit-manual-input" type="text" inputmode="text" autocomplete="off"
+                placeholder="파렛트 QR 또는 헤드레스트 DataMatrix 입력"
+                class="flex-1 min-w-0 px-3.5 py-2.5 rounded-xl border border-slate-300 bg-white text-sm font-mono-code focus:outline-none focus:ring-2 focus:ring-indigo-600" />
+              <button type="submit" class="px-4 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-sm font-bold shrink-0">입력</button>
+            </form>
+
+            <div class="pt-1 border-t border-slate-200/80 flex flex-wrap items-center gap-1.5">
+              <span class="text-[11px] font-semibold text-slate-500 mr-1">실사 테스트:</span>
+              <button type="button" data-audit-quick="PLT-001" class="px-2 py-1 rounded-md bg-white border border-slate-300 text-[11px] font-mono-code font-semibold">PLT-001</button>
+              <button type="button" data-audit-quick="PLT-002" class="px-2 py-1 rounded-md bg-white border border-slate-300 text-[11px] font-mono-code font-semibold">PLT-002</button>
+              <button type="button" id="btn-audit-sim-dm" class="px-2 py-1 rounded-md bg-indigo-50 border border-indigo-200 text-[11px] font-semibold text-indigo-800">+ 실사 품목 스캔</button>
+            </div>
+          </div>
+
+          <div id="audit-last-result" class="hidden rounded-xl p-3.5 border flex items-start gap-3">
+            <div id="audit-last-icon" class="mt-0.5 shrink-0"></div>
+            <div class="min-w-0 flex-1">
+              <p id="audit-last-title" class="text-sm font-bold"></p>
+              <p id="audit-last-desc" class="text-xs mt-0.5 font-mono-code break-all"></p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Comparison & Sync Card -->
+        <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-4 sm:p-5 space-y-4">
+          <div class="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <h3 class="text-base sm:text-lg font-bold text-slate-900">전산재고 vs 실사재고 차이 현황</h3>
+              <p class="text-xs text-slate-500">실사 완료 후 [실사재고 동기화]를 누르면 실사재고가 전산재고로 반영됩니다.</p>
+            </div>
+            <div class="flex flex-wrap gap-2">
+              <button id="btn-audit-reset" type="button" class="px-3.5 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs sm:text-sm font-bold transition">
+                실사 초기화
+              </button>
+              <button id="btn-audit-sync" type="button" data-admin-only="true" class="px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs sm:text-sm font-bold flex items-center gap-1.5 shadow-sm transition">
+                <i data-lucide="refresh-ccw" class="w-4 h-4"></i>
+                <span>실사재고 동기화</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- Audit KPIs -->
+          <div class="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+            <div class="rounded-xl bg-slate-50 border border-slate-200 p-3">
+              <p class="text-[11px] font-semibold text-slate-500">전산 총수량</p>
+              <p id="audit-kpi-sys" class="text-lg font-extrabold text-slate-900 mt-0.5">0 EA</p>
+            </div>
+            <div class="rounded-xl bg-indigo-50 border border-indigo-200 p-3">
+              <p class="text-[11px] font-semibold text-indigo-700">실사 총수량</p>
+              <p id="audit-kpi-phy" class="text-lg font-extrabold text-indigo-700 mt-0.5">0 EA</p>
+            </div>
+            <div class="rounded-xl bg-amber-50 border border-amber-200 p-3">
+              <p class="text-[11px] font-semibold text-amber-700">총 수량 차이</p>
+              <p id="audit-kpi-diff" class="text-lg font-extrabold text-amber-700 mt-0.5">0 EA</p>
+            </div>
+            <div class="rounded-xl bg-rose-50 border border-rose-200 p-3">
+              <p class="text-[11px] font-semibold text-rose-700">불일치 항목</p>
+              <p id="audit-kpi-mismatch" class="text-lg font-extrabold text-rose-700 mt-0.5">0 건</p>
+            </div>
+          </div>
+
+          <div class="overflow-x-auto rounded-xl border border-slate-200">
+            <table class="w-full text-left border-collapse text-xs sm:text-sm">
+              <thead class="bg-slate-900 text-white">
+                <tr>
+                  <th class="px-3 py-2.5 font-bold">파렛트</th>
+                  <th class="px-3 py-2.5 font-bold">품번</th>
+                  <th class="px-3 py-2.5 font-bold">LOT</th>
+                  <th class="px-3 py-2.5 font-bold text-right">전산</th>
+                  <th class="px-3 py-2.5 font-bold text-right">실사</th>
+                  <th class="px-3 py-2.5 font-bold text-right">차이</th>
+                </tr>
+              </thead>
+              <tbody id="audit-diff-tbody" class="divide-y divide-slate-200 bg-white"></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- =====================================================
+           VIEW 2: TOTAL INVENTORY (Requirement 6 & 13)
+           ===================================================== -->
+      <section id="view-total" class="hidden space-y-4">
+        <!-- KPI Row -->
+        <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          <div class="bg-white rounded-2xl p-4 border border-slate-200 shadow-sm">
+            <p class="text-xs font-semibold text-slate-500">전체 적입 수량</p>
+            <p id="kpi-total-qty" class="text-2xl font-extrabold text-slate-900 mt-1">0 EA</p>
+          </div>
+          <div class="bg-white rounded-2xl p-4 border border-slate-200 shadow-sm">
+            <p class="text-xs font-semibold text-slate-500">적재 파렛트</p>
+            <p id="kpi-active-pallets" class="text-2xl font-extrabold text-blue-600 mt-1">0 / 0</p>
+          </div>
+          <div class="bg-white rounded-2xl p-4 border border-slate-200 shadow-sm">
+            <p class="text-xs font-semibold text-slate-500">보유 품번 / LOT</p>
+            <p id="kpi-part-lot" class="text-2xl font-extrabold text-emerald-600 mt-1">0 / 0</p>
+          </div>
+          <div class="bg-white rounded-2xl p-4 border border-slate-200 shadow-sm">
+            <p class="text-xs font-semibold text-slate-500">금일 입/출고</p>
+            <p id="kpi-today-io" class="text-2xl font-extrabold text-amber-600 mt-1">0 / 0</p>
+          </div>
+        </div>
+
+        <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-4 sm:p-5 space-y-4">
+          <div class="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <h2 class="text-base sm:text-lg font-bold text-slate-900">전체 파렛트 통합 재고현황</h2>
+              <p class="text-xs text-slate-500">전 파렛트에 적입된 헤드레스트의 품번·LOT별 합계 및 위치 현황</p>
+            </div>
+            <button id="btn-export-all-xlsx" type="button"
+              class="px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs sm:text-sm font-bold flex items-center gap-1.5 transition shadow-sm">
+              <i data-lucide="file-spreadsheet" class="w-4 h-4"></i>
+              <span>전체 재고 엑셀 다운로드 (.xlsx)</span>
+            </button>
+          </div>
+
+          <!-- Long-Term Aging Filter Bar -->
+          <div class="flex flex-wrap items-center justify-between gap-2 bg-slate-50 p-2.5 rounded-xl border border-slate-200">
+            <div class="flex flex-wrap items-center gap-1.5">
+              <span class="text-xs font-bold text-slate-700 mr-1">체류기간 필터:</span>
+              <button type="button" data-aging-filter="ALL" class="aging-filter-btn px-3 py-1.5 rounded-lg text-xs font-bold bg-slate-900 text-white shadow-sm">전체 재고</button>
+              <button type="button" data-aging-filter="30" class="aging-filter-btn px-3 py-1.5 rounded-lg text-xs font-bold bg-white border border-amber-300 text-amber-800 hover:bg-amber-50">장기재고 전체 (30일+)</button>
+              <button type="button" data-aging-filter="60" class="aging-filter-btn px-3 py-1.5 rounded-lg text-xs font-bold bg-white border border-orange-300 text-orange-800 hover:bg-orange-50">60일+</button>
+              <button type="button" data-aging-filter="90" class="aging-filter-btn px-3 py-1.5 rounded-lg text-xs font-bold bg-white border border-rose-300 text-rose-800 hover:bg-rose-50">90일+</button>
+            </div>
+            <span id="long-term-summary-badge" class="text-xs font-bold text-amber-800 bg-amber-100 px-2.5 py-1 rounded-lg border border-amber-200">장기재고(30일+): 0 EA</span>
+          </div>
+
+          <!-- Search & Filter -->
+          <div class="flex flex-col sm:flex-row gap-2">
+            <input id="total-search-input" type="text" placeholder="품번, 차종, LOT 번호, 파렛트 ID 검색..."
+              class="flex-1 px-3.5 py-2.5 rounded-xl border border-slate-300 bg-slate-50 text-sm focus:outline-none focus:ring-2 focus:ring-blue-600 focus:bg-white" />
+            <select id="total-pallet-filter" class="px-3.5 py-2.5 rounded-xl border border-slate-300 bg-slate-50 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-blue-600">
+              <option value="ALL">전체 파렛트</option>
+            </select>
+          </div>
+
+          <div class="overflow-x-auto rounded-xl border border-slate-200">
+            <table class="w-full text-left border-collapse text-xs sm:text-sm">
+              <thead class="bg-slate-900 text-white">
+                <tr>
+                  <th class="px-3 py-2.5 font-bold">품번 (Part No.)</th>
+                  <th class="px-3 py-2.5 font-bold">차종 / 품명</th>
+                  <th class="px-3 py-2.5 font-bold">LOT 번호</th>
+                  <th class="px-3 py-2.5 font-bold">체류경과 (30/60/90일)</th>
+                  <th class="px-3 py-2.5 font-bold text-right">총 수량</th>
+                  <th class="px-3 py-2.5 font-bold">적입 파렛트 위치</th>
+                </tr>
+              </thead>
+              <tbody id="total-stock-tbody" class="divide-y divide-slate-200 bg-white"></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- =====================================================
+           VIEW 3: PALLET QR GENERATOR (Requirement 1)
+           ===================================================== -->
+      <section id="view-qrgen" class="hidden space-y-4">
+        <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-4 sm:p-5 space-y-4">
+          <div class="flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <h2 class="text-base sm:text-lg font-bold text-slate-900">파렛트 QR코드 일괄 제작 및 라벨 인쇄</h2>
+              <p class="text-xs text-slate-500">총 파렛트 수량과 지정 양식에 맞춰 QR코드를 생성하고 파렛트에 부착용 라벨로 인쇄합니다.</p>
+            </div>
+            <button id="btn-print-qr" type="button"
+              class="px-4 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs sm:text-sm font-bold flex items-center gap-1.5 transition">
+              <i data-lucide="printer" class="w-4 h-4"></i>
+              <span>라벨 인쇄하기</span>
+            </button>
+          </div>
+
+          <form id="qrgen-form" class="grid grid-cols-1 sm:grid-cols-4 gap-3 bg-slate-50 p-4 rounded-xl border border-slate-200">
+            <div>
+              <label class="block text-xs font-bold text-slate-700 mb-1">총 파렛트 수량</label>
+              <input id="qr-count" type="number" min="1" max="100" value="10"
+                class="w-full px-3 py-2 rounded-lg border border-slate-300 bg-white text-sm font-bold" />
+            </div>
+            <div>
+              <label class="block text-xs font-bold text-slate-700 mb-1">파렛트 ID 접두어</label>
+              <input id="qr-prefix" type="text" value="PLT-"
+                class="w-full px-3 py-2 rounded-lg border border-slate-300 bg-white text-sm font-mono-code font-bold" />
+            </div>
+            <div>
+              <label class="block text-xs font-bold text-slate-700 mb-1">시작 번호 / 자릿수</label>
+              <div class="flex gap-1.5">
+                <input id="qr-start" type="number" min="1" value="1" class="w-1/2 px-2.5 py-2 rounded-lg border border-slate-300 bg-white text-sm font-bold" />
+                <input id="qr-pad" type="number" min="1" max="5" value="3" class="w-1/2 px-2.5 py-2 rounded-lg border border-slate-300 bg-white text-sm font-bold" />
+              </div>
+            </div>
+            <div>
+              <label class="block text-xs font-bold text-slate-700 mb-1">QR 양식 포맷</label>
+              <select id="qr-format" class="w-full px-3 py-2 rounded-lg border border-slate-300 bg-white text-sm font-semibold">
+                <option value="PLAIN">ID 단독 (예: PLT-001)</option>
+                <option value="PREFIX_TYPE">구분포함 (HR_PLT|PLT-001)</option>
+                <option value="JSON">JSON ({"pallet":"PLT-001"})</option>
+              </select>
+            </div>
+            <div class="sm:col-span-4 flex flex-wrap items-center justify-between gap-2 pt-1">
+              <label class="inline-flex items-center gap-2 text-xs font-semibold text-slate-700 cursor-pointer">
+                <input id="qr-sync-pallets" type="checkbox" checked class="rounded border-slate-300 text-blue-600 focus:ring-blue-500" />
+                <span>생성된 파렛트 목록을 시스템 파렛트 마스터에 자동 등록</span>
+              </label>
+              <button type="submit"
+                class="px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-sm font-bold transition shadow-sm">
+                QR코드 생성
+              </button>
+            </div>
+          </form>
+
+          <div id="print-qr-area" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3"></div>
+        </div>
+      </section>
+
+      <!-- =====================================================
+           VIEW 4: TRANSACTION LOGS
+           ===================================================== -->
+      <section id="view-logs" class="hidden space-y-4">
+        <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-4 sm:p-5 space-y-4">
+          <div class="flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <h2 class="text-base sm:text-lg font-bold text-slate-900">입·출고 실시간 작업 이력</h2>
+              <p class="text-xs text-slate-500">모든 기기에서 처리된 입고/출고 스캔 이력이 작업자 정보와 함께 기록됩니다.</p>
+            </div>
+            <div class="flex gap-2">
+              <select id="log-action-filter" class="px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-xs font-bold">
+                <option value="ALL">전체 구분</option>
+                <option value="입고">입고만</option>
+                <option value="출고">출고만</option>
+              </select>
+              <input id="log-search-input" type="text" placeholder="파렛트/품번/LOT/작업자 검색"
+                class="px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-xs w-44 sm:w-56" />
+            </div>
+          </div>
+
+          <div class="overflow-x-auto rounded-xl border border-slate-200">
+            <table class="w-full text-left border-collapse text-xs">
+              <thead class="bg-slate-900 text-white">
+                <tr>
+                  <th class="px-3 py-2.5 font-bold">일시</th>
+                  <th class="px-3 py-2.5 font-bold">구분</th>
+                  <th class="px-3 py-2.5 font-bold">파렛트</th>
+                  <th class="px-3 py-2.5 font-bold">품번</th>
+                  <th class="px-3 py-2.5 font-bold">LOT</th>
+                  <th class="px-3 py-2.5 font-bold">시리얼</th>
+                  <th class="px-3 py-2.5 font-bold">작업자</th>
+                </tr>
+              </thead>
+              <tbody id="logs-tbody" class="divide-y divide-slate-200 bg-white font-mono-code"></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <!-- Mobile Bottom Bar -->
+    <nav class="sm:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 z-40 flex justify-around py-1.5 pb-[calc(0.375rem+var(--safe-bottom))]">
+      <button data-nav="work" class="mobile-nav-btn flex flex-col items-center gap-0.5 px-3 py-1 text-blue-600 font-bold text-[11px]">
+        <i data-lucide="scan-line" class="w-5 h-5"></i>
+        <span>스캔작업</span>
+      </button>
+      <button data-nav="audit" class="mobile-nav-btn flex flex-col items-center gap-0.5 px-2 py-1 text-slate-500 font-semibold text-[11px]">
+        <i data-lucide="clipboard-check" class="w-5 h-5"></i>
+        <span>재고실사</span>
+      </button>
+      <button data-nav="total" data-admin-only="true" class="mobile-nav-btn flex flex-col items-center gap-0.5 px-2 py-1 text-slate-500 font-semibold text-[11px]">
+        <i data-lucide="database" class="w-5 h-5"></i>
+        <span>전체재고</span>
+      </button>
+      <button data-nav="qrgen" data-admin-only="true" class="mobile-nav-btn flex flex-col items-center gap-0.5 px-3 py-1 text-slate-500 font-semibold text-[11px]">
+        <i data-lucide="qr-code" class="w-5 h-5"></i>
+        <span>QR제작</span>
+      </button>
+      <button data-nav="logs" data-admin-only="true" class="mobile-nav-btn flex flex-col items-center gap-0.5 px-3 py-1 text-slate-500 font-semibold text-[11px]">
+        <i data-lucide="history" class="w-5 h-5"></i>
+        <span>이력</span>
+      </button>
+    </nav>
+  </div>
+
+  <!-- =========================================================
+       SETTINGS / MASTER DATA / SYNC / USER ADMIN MODAL
+       ========================================================= -->
+  <div id="settings-modal" class="hidden fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4">
+    <div class="bg-white rounded-t-2xl sm:rounded-2xl shadow-2xl max-w-2xl w-full max-h-[92dvh] flex flex-col overflow-hidden">
+      <div class="px-4 sm:px-5 py-3.5 bg-slate-900 text-white flex items-center justify-between shrink-0">
+        <h3 class="font-bold text-sm sm:text-base flex items-center gap-2">
+          <i data-lucide="sliders" class="w-5 h-5 text-blue-400"></i>
+          <span>시스템 설정 · 기준정보 · 계정</span>
+        </h3>
+        <button id="btn-close-settings" type="button" class="p-2 rounded-lg hover:bg-slate-800 text-slate-300">
+          <i data-lucide="x" class="w-5 h-5"></i>
+        </button>
+      </div>
+
+      <!-- Settings Tabs -->
+      <div class="bg-slate-100 border-b border-slate-200 px-3 sm:px-5 flex gap-1 overflow-x-auto shrink-0">
+        <button type="button" data-settings-tab="master" data-admin-only="true" class="settings-tab-btn px-3 py-2.5 text-xs sm:text-sm font-bold border-b-2 border-blue-600 text-blue-700 whitespace-nowrap">기준정보 등록</button>
+        <button type="button" data-settings-tab="account" class="settings-tab-btn px-3 py-2.5 text-xs sm:text-sm font-semibold border-b-2 border-transparent text-slate-600 whitespace-nowrap">비밀번호·사용자</button>
+        <button type="button" data-settings-tab="sync" data-admin-only="true" class="settings-tab-btn px-3 py-2.5 text-xs sm:text-sm font-semibold border-b-2 border-transparent text-slate-600 whitespace-nowrap">동기화·백업</button>
+      </div>
+
+      <div class="p-4 sm:p-5 overflow-y-auto space-y-5 text-sm flex-1">
+        <!-- TAB 1: 기준정보 등록 (Part Master) -->
+        <div id="settings-panel-master" class="space-y-4">
+          <div class="flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <h4 class="font-bold text-slate-900 flex items-center gap-1.5">
+                <i data-lucide="database" class="w-4 h-4 text-blue-600"></i>
+                <span>헤드레스트 기준정보 등록</span>
+              </h4>
+              <p class="text-xs text-slate-500 mt-0.5">화면 직접 입력 또는 엑셀 파일 업로드로 기준정보를 등록합니다.</p>
+            </div>
+            <div class="flex flex-wrap gap-1.5">
+              <button id="btn-download-master-tpl" type="button" class="px-3 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold flex items-center gap-1">
+                <i data-lucide="download" class="w-3.5 h-3.5"></i>
+                <span>양식 받기</span>
+              </button>
+              <label class="px-3 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold flex items-center gap-1 cursor-pointer shadow-sm">
+                <i data-lucide="file-up" class="w-3.5 h-3.5"></i>
+                <span>엑셀 업로드</span>
+                <input id="input-upload-master-xlsx" type="file" accept=".xlsx,.xls,.csv" class="hidden" />
+              </label>
+            </div>
+          </div>
+
+          <!-- Direct Input Form (with Popup Selectors for 차종 & 품목) -->
+          <form id="add-master-form" class="bg-slate-50 border border-slate-200 rounded-xl p-3.5 space-y-3">
+            <div class="grid grid-cols-2 gap-2.5">
+              <div>
+                <label class="block text-xs font-bold text-slate-700 mb-1">차종 (터치 선택)</label>
+                <button id="btn-pick-vehicle" type="button"
+                  class="w-full px-3 py-2.5 rounded-xl border border-slate-300 bg-white text-left text-sm font-bold text-slate-800 flex items-center justify-between hover:border-blue-500">
+                  <span id="pick-vehicle-label" class="text-slate-400 font-normal">차종 선택</span>
+                  <i data-lucide="chevron-down" class="w-4 h-4 text-slate-400"></i>
+                </button>
+                <input id="master-vehicle-input" type="hidden" required />
+              </div>
+              <div>
+                <label class="block text-xs font-bold text-slate-700 mb-1">품목 (터치 선택)</label>
+                <button id="btn-pick-itemtype" type="button"
+                  class="w-full px-3 py-2.5 rounded-xl border border-slate-300 bg-white text-left text-sm font-bold text-slate-800 flex items-center justify-between hover:border-blue-500">
+                  <span id="pick-itemtype-label" class="text-slate-400 font-normal">품목 선택</span>
+                  <i data-lucide="chevron-down" class="w-4 h-4 text-slate-400"></i>
+                </button>
+                <input id="master-itemtype-input" type="hidden" required />
+              </div>
+            </div>
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+              <div>
+                <label for="master-partno-input" class="block text-xs font-bold text-slate-700 mb-1">품번 (Part No.)</label>
+                <input id="master-partno-input" type="text" placeholder="예: 88210-AA100"
+                  class="w-full px-3 py-2.5 rounded-xl border border-slate-300 bg-white text-sm font-mono-code uppercase" required />
+              </div>
+              <div>
+                <label for="master-spec-input" class="block text-xs font-bold text-slate-700 mb-1">사양 (Spec)</label>
+                <input id="master-spec-input" type="text" placeholder="예: 나파 블랙 / 열선"
+                  class="w-full px-3 py-2.5 rounded-xl border border-slate-300 bg-white text-sm" required />
+              </div>
+            </div>
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-2">
+              <div>
+                <label for="master-foam-lot" class="block text-[11px] font-bold text-slate-700 mb-1">SUB LOT 1</label>
+                <input id="master-foam-lot" type="text" placeholder="예: SUB1-2611A"
+                  class="w-full px-2.5 py-2 rounded-xl border border-slate-300 bg-white text-xs font-mono-code uppercase" />
+              </div>
+              <div>
+                <label for="master-cover-lot" class="block text-[11px] font-bold text-slate-700 mb-1">SUB LOT 2</label>
+                <input id="master-cover-lot" type="text" placeholder="예: SUB2-2611B"
+                  class="w-full px-2.5 py-2 rounded-xl border border-slate-300 bg-white text-xs font-mono-code uppercase" />
+              </div>
+              <div>
+                <label for="master-stay-lot" class="block text-[11px] font-bold text-slate-700 mb-1">SUB LOT 3</label>
+                <input id="master-stay-lot" type="text" placeholder="예: SUB3-2611C"
+                  class="w-full px-2.5 py-2 rounded-xl border border-slate-300 bg-white text-xs font-mono-code uppercase" />
+              </div>
+            </div>
+            <button type="submit" class="w-full py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-sm font-bold shadow-sm transition">
+              기준정보 등록 / 수정
+            </button>
+          </form>
+
+          <!-- Registered Master List -->
+          <div class="space-y-2">
+            <div class="flex items-center justify-between">
+              <span class="text-xs font-bold text-slate-700">등록된 기준정보 (<span id="master-count-badge">0</span>건)</span>
+              <input id="master-search-input" type="text" placeholder="차종/품번/사양 검색" class="px-2.5 py-1.5 rounded-lg border border-slate-300 text-xs w-40 sm:w-52" />
+            </div>
+            <div class="overflow-x-auto rounded-xl border border-slate-200 max-h-60 overflow-y-auto">
+              <table class="w-full text-left border-collapse text-xs">
+                <thead class="bg-slate-900 text-white sticky top-0">
+                  <tr>
+                    <th class="px-2.5 py-2 font-bold">차종</th>
+                    <th class="px-2.5 py-2 font-bold">품번</th>
+                    <th class="px-2.5 py-2 font-bold">품목</th>
+                    <th class="px-2.5 py-2 font-bold">사양</th>
+                    <th class="px-2.5 py-2 font-bold">SUB LOT (1 / 2 / 3)</th>
+                    <th class="px-2.5 py-2 font-bold text-center">삭제</th>
+                  </tr>
+                </thead>
+                <tbody id="master-list-tbody" class="divide-y divide-slate-200 bg-white"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <!-- TAB 2: 비밀번호 변경 & 사용자 현황 (Admin Only for User List) -->
+        <div id="settings-panel-account" class="hidden space-y-5">
+          <!-- Password Change Button (Available to current user) -->
+          <div class="bg-slate-50 border border-slate-200 rounded-xl p-4 flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <h4 class="font-bold text-slate-900 flex items-center gap-1.5">
+                <i data-lucide="key-round" class="w-4 h-4 text-blue-600"></i>
+                <span>내 패스워드(PIN) 변경</span>
+              </h4>
+              <p class="text-xs text-slate-500 mt-0.5">기존 4자리 PIN 확인 후 새로운 4자리 숫자로 변경합니다.</p>
+            </div>
+            <button id="btn-open-pin-modal" type="button"
+              class="px-4 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs sm:text-sm font-bold shadow-sm transition">
+              패스워드 변경
+            </button>
+          </div>
+
+          <!-- Admin-Only User ID & Password Status (Hidden completely for Workers!) -->
+          <div id="user-admin-section" class="hidden space-y-3">
+            <h4 class="font-bold text-slate-900 flex items-center gap-2">
+              <i data-lucide="users" class="w-4 h-4 text-emerald-600"></i>
+              <span>사용자 ID 및 패스워드 현황 (관리자 전용)</span>
+            </h4>
+            <form id="add-user-form" class="grid grid-cols-2 sm:grid-cols-4 gap-2">
+              <input id="new-user-id" type="text" placeholder="사번 (예: OP03)" class="px-3 py-2.5 rounded-xl border border-slate-300 text-xs uppercase font-mono-code" required />
+              <input id="new-user-name" type="text" placeholder="이름 (예: 홍길동)" class="px-3 py-2.5 rounded-xl border border-slate-300 text-xs" required />
+              <input id="new-user-pin" type="text" inputmode="numeric" maxlength="4" pattern="\d{4}" placeholder="PIN (숫자 4자리)" class="px-3 py-2.5 rounded-xl border border-slate-300 text-xs font-mono-code" required />
+              <button type="submit" class="px-3 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold">사용자 추가</button>
+            </form>
+            <div id="user-list-container" class="divide-y divide-slate-200 border border-slate-200 rounded-xl overflow-hidden text-xs"></div>
+          </div>
+        </div>
+
+        <!-- TAB 3: 동기화 & 백업 -->
+        <div id="settings-panel-sync" class="hidden space-y-5">
+          <div class="space-y-3">
+            <h4 class="font-bold text-slate-900 flex items-center gap-2">
+              <i data-lucide="cloud" class="w-4 h-4 text-blue-600"></i>
+              <span>멀티 휴대폰 실시간 동기화 (A폰 ↔ B폰 동일 반영)</span>
+            </h4>
+            <p class="text-xs text-slate-600 leading-relaxed">
+              기본값으로 <strong>Firebase(paller-scanner-default-rtdb)</strong>에 자동 접속되며, 추후 사내 서버 구축 시 서버 유형과 주소를 변경하여 바로 전환할 수 있습니다.
+            </p>
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-2">
+              <select id="setting-sync-type" class="px-3 py-2.5 rounded-xl border border-slate-300 bg-slate-50 text-xs font-bold">
+                <option value="firebase">Firebase RTDB</option>
+                <option value="custom">사내 API 서버 (REST)</option>
+              </select>
+              <input id="setting-sync-url" type="url" placeholder="https://paller-scanner-default-rtdb.firebaseio.com"
+                class="sm:col-span-2 px-3 py-2.5 rounded-xl border border-slate-300 text-xs font-mono-code" />
+            </div>
+            <div class="flex flex-wrap gap-2">
+              <button id="btn-save-sync" type="button" class="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold">저장·연결</button>
+              <button id="btn-reset-sync-default" type="button" class="px-3 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-xs font-semibold text-slate-700">기본 Firebase 복원</button>
+              <button id="btn-manual-pull" type="button" class="px-3 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-xs font-semibold text-slate-700">지금 동기화 새로고침</button>
+              <button id="btn-export-json" type="button" class="px-3 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-xs font-semibold text-slate-700">전체 데이터 JSON 백업</button>
+              <label class="px-3 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-xs font-semibold text-slate-700 cursor-pointer">
+                JSON 복원
+                <input id="input-import-json" type="file" accept=".json" class="hidden" />
+              </label>
+            </div>
+          </div>
+
+          <hr class="border-slate-200" />
+
+          <div class="flex items-center justify-between">
+            <span class="text-xs text-slate-500">전체 데이터 완전 초기화 (파렛트·재고·기준정보 비우기)</span>
+            <button id="btn-reset-demo" type="button" class="px-3.5 py-2 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 text-xs font-bold">
+              데이터 초기화
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- =========================================================
+       POPUP: VEHICLE / ITEM TYPE PICKER MODAL
+       ========================================================= -->
+  <div id="picker-modal" class="hidden fixed inset-0 z-[60] bg-slate-950/60 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4">
+    <div class="bg-white rounded-t-2xl sm:rounded-2xl shadow-2xl max-w-sm w-full overflow-hidden">
+      <div class="px-4 py-3.5 bg-slate-900 text-white flex items-center justify-between">
+        <h3 id="picker-modal-title" class="font-bold text-sm">선택</h3>
+        <button id="btn-close-picker" type="button" class="p-1.5 rounded-lg hover:bg-slate-800 text-slate-300">
+          <i data-lucide="x" class="w-4 h-4"></i>
+        </button>
+      </div>
+      <div id="picker-options-grid" class="p-4 grid grid-cols-2 gap-2.5 max-h-60 overflow-y-auto"></div>
+      <form id="picker-add-form" class="hidden px-4 pb-4 pt-2 border-t border-slate-200 flex gap-2">
+        <input id="picker-add-input" type="text" placeholder="신규 차종 입력 (예: CN8, NX5)"
+          class="flex-1 min-w-0 px-3 py-2 rounded-xl border border-slate-300 bg-slate-50 text-xs font-bold uppercase focus:outline-none focus:ring-2 focus:ring-blue-600 focus:bg-white" />
+        <button type="submit" class="px-3.5 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold shrink-0">
+          추가
+        </button>
+      </form>
+    </div>
+  </div>
+
+  <!-- =========================================================
+       POPUP: 4-DIGIT PASSWORD(PIN) CHANGE MODAL
+       ========================================================= -->
+  <div id="pin-modal" class="hidden fixed inset-0 z-[60] bg-slate-950/60 backdrop-blur-sm flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl shadow-2xl max-w-sm w-full overflow-hidden">
+      <div class="px-4 py-3.5 bg-slate-900 text-white flex items-center justify-between">
+        <h3 class="font-bold text-sm flex items-center gap-2">
+          <i data-lucide="key-round" class="w-4 h-4 text-blue-400"></i>
+          <span>패스워드(PIN 4자리) 변경</span>
+        </h3>
+        <button id="btn-close-pin-modal" type="button" class="p-1.5 rounded-lg hover:bg-slate-800 text-slate-300">
+          <i data-lucide="x" class="w-4 h-4"></i>
+        </button>
+      </div>
+      <form id="change-pin-form" class="p-5 space-y-4">
+        <div>
+          <label for="pin-current-input" class="block text-xs font-bold text-slate-700 mb-1.5">기존 패스워드 (숫자 4자리)</label>
+          <input id="pin-current-input" type="password" inputmode="numeric" maxlength="4" pattern="\d{4}" placeholder="기존 4자리 입력"
+            class="w-full px-3.5 py-3 rounded-xl border border-slate-300 bg-slate-50 text-center text-lg font-mono-code tracking-[0.4em] focus:outline-none focus:ring-2 focus:ring-blue-600 focus:bg-white" required />
+        </div>
+        <div>
+          <label for="pin-new-input" class="block text-xs font-bold text-slate-700 mb-1.5">변경할 패스워드 (숫자 4자리)</label>
+          <input id="pin-new-input" type="password" inputmode="numeric" maxlength="4" pattern="\d{4}" placeholder="신규 4자리 입력"
+            class="w-full px-3.5 py-3 rounded-xl border border-slate-300 bg-slate-50 text-center text-lg font-mono-code tracking-[0.4em] focus:outline-none focus:ring-2 focus:ring-blue-600 focus:bg-white" required />
+        </div>
+        <div class="flex gap-2 pt-1">
+          <button id="btn-cancel-pin-modal" type="button" class="w-1/2 py-3 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm font-bold">취소</button>
+          <button type="submit" class="w-1/2 py-3 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-sm font-bold shadow-sm">변경 저장</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- =========================================================
+       POPUP: DUPLICATE LOT ALARM MODAL (입고/출고/실사 공용)
+       ========================================================= -->
+  <div id="dup-alarm-modal" class="hidden fixed inset-0 z-[70] bg-rose-950/75 backdrop-blur-sm flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl shadow-2xl max-w-sm w-full overflow-hidden border-2 border-rose-500">
+      <div class="px-4 py-3.5 bg-rose-600 text-white flex items-center gap-2">
+        <i data-lucide="alert-octagon" class="w-6 h-6 shrink-0 animate-pulse"></i>
+        <h3 id="dup-alarm-title" class="font-extrabold text-base">LOT 중복 알람</h3>
+      </div>
+      <div class="p-5 space-y-4">
+        <p id="dup-alarm-msg" class="text-sm font-semibold text-slate-800 leading-relaxed"></p>
+        <div id="dup-alarm-detail" class="p-3 rounded-xl bg-rose-50 border border-rose-200 text-xs font-mono-code text-rose-900 break-all"></div>
+        <div id="dup-admin-auth-box" class="hidden p-3 rounded-xl bg-amber-50 border border-amber-300 space-y-2">
+          <label for="dup-admin-pin-input" class="block text-xs font-bold text-amber-950">
+            🔒 관리자(ADMIN) 4자리 PIN 승인 시에만 강제 진행 가능
+          </label>
+          <input id="dup-admin-pin-input" type="password" inputmode="numeric" maxlength="4" placeholder="관리자 PIN 입력"
+            class="w-full px-3 py-2 rounded-lg border border-amber-400 bg-white text-center text-base font-mono-code tracking-[0.35em] focus:outline-none focus:ring-2 focus:ring-amber-600" />
+        </div>
+        <div class="flex gap-2">
+          <button id="btn-dup-cancel" type="button" class="flex-1 py-3 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-sm font-bold">
+            중복 차단 (닫기)
+          </button>
+          <button id="btn-dup-force" type="button" class="flex-1 py-3 rounded-xl bg-amber-500 hover:bg-amber-600 text-slate-950 text-sm font-bold">
+            관리자 승인 강제진행
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- =========================================================
+       POPUP: AUDIT SYNC CONFIRMATION MODAL
+       ========================================================= -->
+  <div id="audit-sync-modal" class="hidden fixed inset-0 z-[70] bg-slate-950/60 backdrop-blur-sm flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl shadow-2xl max-w-sm w-full overflow-hidden">
+      <div class="px-4 py-3.5 bg-slate-900 text-white flex items-center gap-2">
+        <i data-lucide="refresh-ccw" class="w-5 h-5 text-emerald-400"></i>
+        <h3 class="font-bold text-sm">실사재고 동기화 확인</h3>
+      </div>
+      <div class="p-5 space-y-4">
+        <p id="audit-sync-confirm-text" class="text-sm text-slate-700 leading-relaxed">
+          현재 스캔된 실사재고를 전산재고로 덮어쓰기 동기화하시겠습니까?
+        </p>
+        <div class="flex gap-2">
+          <button id="btn-audit-sync-cancel" type="button" class="w-1/2 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm font-bold">취소</button>
+          <button id="btn-audit-sync-confirm" type="button" class="w-1/2 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-bold">동기화 실행</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- =========================================================
+       APPLICATION SCRIPT
+       ========================================================= -->
+  <script>
+    (function () {
+      'use strict';
+
+      const STORAGE_KEY = 'sycf_headrest_wms_v4';
+      const SYNC_URL_KEY = 'sycf_headrest_sync_url_v1';
+      const CHANNEL_NAME = 'sycf_headrest_wms_channel';
+
+      const DEFAULT_VEHICLE_OPTIONS = ['RS4', 'RS4 PE', 'JG', 'US4 VIP', 'RJ'];
+      function getVehicleOptions() {
+        const list = (state && Array.isArray(state.vehicleOptions) && state.vehicleOptions.length)
+          ? state.vehicleOptions
+          : DEFAULT_VEHICLE_OPTIONS;
+        return Array.from(new Set(list));
+      }
+      const ITEM_TYPE_OPTIONS = ['FRT', 'RR', 'CTR', '3RD'];
+
+      const DEFAULT_SLOT_CAPACITY = 10;
+      const DEFAULT_PART_MASTER = {
+        '88210-AA100': { vehicle: 'RS4', partNo: '88210-AA100', itemType: 'FRT', spec: '나파 블랙 / 열선', foamLot: 'FM-2611A', coverLot: 'CV-2611A', stayLot: 'ST-2611A' },
+        '88210-AA200': { vehicle: 'RS4 PE', partNo: '88210-AA200', itemType: 'RR', spec: '인조가죽 / 블랙', foamLot: 'FM-2611B', coverLot: 'CV-2611B', stayLot: 'ST-2611A' },
+        '88540-NX100': { vehicle: 'JG', partNo: '88540-NX100', itemType: 'CTR', spec: '에보니 / 스탠다드', foamLot: 'FM-2611C', coverLot: 'CV-2611C', stayLot: 'ST-2611B' },
+        '88540-JG200': { vehicle: 'US4 VIP', partNo: '88540-JG200', itemType: 'FRT', spec: 'VIP 윙아웃 / 프레스티지', foamLot: 'FM-2611D', coverLot: 'CV-2611D', stayLot: 'ST-2611C' },
+        '88210-US400': { vehicle: 'RJ', partNo: '88210-US400', itemType: '3RD', spec: '3열 폴딩 / 그레이', foamLot: 'FM-2611E', coverLot: 'CV-2611E', stayLot: 'ST-2611D' }
+      };
+
+      function getSubLotsForPart(partNo) {
+        const m = (state && state.partMaster && state.partMaster[partNo]) || {};
+        return {
+          foamLot: m.foamLot || '-',
+          coverLot: m.coverLot || '-',
+          stayLot: m.stayLot || '-'
+        };
+      }
+
+
+
+      function getPartDisplayName(partNo) {
+        const master = (state && state.partMaster && state.partMaster[partNo]);
+        if (!master) return '헤드레스트 (' + partNo + ')';
+        return `[${master.vehicle}] ${master.itemType} · ${master.spec}`;
+      }
+
+      const DEFAULT_USERS = [
+        { id: 'ADMIN', name: '관리자', pin: '0000', role: 'ADMIN', active: true },
+        { id: 'OP01', name: '김생산', pin: '1234', role: 'WORKER', active: true },
+        { id: 'OP02', name: '이물류', pin: '5678', role: 'WORKER', active: true }
+      ];
+
+      function createInitialState() {
+        return {
+          users: DEFAULT_USERS,
+          vehicleOptions: [...DEFAULT_VEHICLE_OPTIONS],
+          partMaster: {},
+          pallets: {},
+          items: [],
+          logs: [],
+          version: 0
+        };
+      }
+
+      // Safe localStorage helpers
+      function loadState() {
+        try {
+          const raw = localStorage.getItem(STORAGE_KEY);
+          if (raw) {
+            const parsed = JSON.parse(raw);
+            if (parsed && parsed.pallets && Array.isArray(parsed.items)) {
+              if (!parsed.partMaster) parsed.partMaster = {};
+              if (!Array.isArray(parsed.vehicleOptions) || parsed.vehicleOptions.length === 0) parsed.vehicleOptions = [...DEFAULT_VEHICLE_OPTIONS];
+              return parsed;
+            }
+          }
+        } catch (e) { /* ignore */ }
+        return createInitialState();
+      }
+
+      function saveStateLocal(st) {
+        try {
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(st));
+        } catch (e) { /* ignore */ }
+      }
+
+      let state = loadState();
+      let currentUser = null;
+      let activeNav = 'work';
+      let selectedPalletId = null;
+      let workActionMode = null; // 'IN' | 'OUT' | 'DIRECT_OUT' | 'STOCK' | null
+      let scanMethod = 'camera'; // 'camera' | 'hid' | 'manual'
+      let html5QrCode = null;
+      let isCameraRunning = false;
+
+      // Audit (재고실사) state
+      let auditPalletId = null;
+      let auditItems = [];
+      let auditScanMethod = 'camera';
+      let auditQrCode = null;
+      let isAuditCameraRunning = false;
+      let pendingDupAction = null;
+      let lastScanCooldown = { code: '', time: 0 };
+      const DEFAULT_SYNC_URL = 'https://paller-scanner-default-rtdb.firebaseio.com';
+      const SYNC_TYPE_KEY = 'sycf_headrest_sync_type_v1';
+      let syncUrl = DEFAULT_SYNC_URL;
+      let syncType = 'firebase';
+      try {
+        const savedUrl = localStorage.getItem(SYNC_URL_KEY);
+        if (savedUrl !== null && savedUrl.trim() !== '') syncUrl = savedUrl.trim();
+        const savedType = localStorage.getItem(SYNC_TYPE_KEY);
+        if (savedType === 'firebase' || savedType === 'custom') syncType = savedType;
+      } catch (e) { /* ignore */ }
+
+      function getSyncEndpoint() {
+        const base = syncUrl.replace(/\/+$/, '');
+        if (!base) return '';
+        return syncType === 'firebase' ? (base + '/headrest_wms_v2.json') : base;
+      }
+
+      // Cross-tab BroadcastChannel
+      let bc = null;
+      try {
+        if ('BroadcastChannel' in window) {
+          bc = new BroadcastChannel(CHANNEL_NAME);
+          bc.onmessage = function (ev) {
+            if (ev.data && ev.data.type === 'STATE_SYNC') {
+              state = ev.data.state;
+              saveStateLocal(state);
+              renderAll();
+              showToast('다른 기기/탭의 변경사항이 반영되었습니다.', 'info');
+            }
+          };
+        }
+      } catch (e) { /* ignore */ }
+
+      // Web Audio Beep (iOS-safe: triggered after user gesture)
+      let audioCtx = null;
+      function playBeep(ok) {
+        try {
+          if (!audioCtx) {
+            const Ctx = window.AudioContext || window.webkitAudioContext;
+            if (Ctx) audioCtx = new Ctx();
+          }
+          if (!audioCtx) return;
+          if (audioCtx.state === 'suspended') audioCtx.resume();
+          const osc = audioCtx.createOscillator();
+          const gain = audioCtx.createGain();
+          osc.type = ok ? 'sine' : 'sawtooth';
+          osc.frequency.setValueAtTime(ok ? 1046 : 240, audioCtx.currentTime);
+          gain.gain.setValueAtTime(0.14, audioCtx.currentTime);
+          gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + (ok ? 0.14 : 0.35));
+          osc.connect(gain);
+          gain.connect(audioCtx.destination);
+          osc.start();
+          osc.stop(audioCtx.currentTime + (ok ? 0.15 : 0.36));
+        } catch (e) { /* ignore */ }
+      }
+
+      // Toast Notification
+      function showToast(msg, type) {
+        const container = document.getElementById('toast-container');
+        const el = document.createElement('div');
+        const colors = {
+          ok: 'bg-emerald-600 text-white',
+          err: 'bg-rose-600 text-white',
+          warn: 'bg-amber-500 text-slate-950',
+          info: 'bg-slate-900 text-white'
+        };
+        el.className = `pointer-events-auto px-4 py-3 rounded-xl shadow-lg text-xs sm:text-sm font-bold flex items-center gap-2 transition-all ${colors[type] || colors.info}`;
+        el.textContent = msg;
+        container.appendChild(el);
+        setTimeout(() => {
+          el.style.opacity = '0';
+          setTimeout(() => el.remove(), 250);
+        }, 2800);
+      }
+
+      // Cloud Sync (Firebase RTDB REST or compatible JSON endpoint)
+      async function pushStateToCloud() {
+        saveStateLocal(state);
+        if (bc) {
+          try { bc.postMessage({ type: 'STATE_SYNC', state }); } catch (e) { /* ignore */ }
+        }
+        const endpoint = getSyncEndpoint();
+        if (!endpoint) return;
+        try {
+          await fetch(endpoint, {
+            method: syncType === 'firebase' ? 'PUT' : 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(state)
+          });
+          updateSyncBadge(true);
+        } catch (e) {
+          updateSyncBadge(false);
+        }
+      }
+
+      async function pullStateFromCloud(silent) {
+        const endpoint = getSyncEndpoint();
+        if (!endpoint) return;
+        try {
+          const res = await fetch(endpoint);
+          if (!res.ok) throw new Error('HTTP ' + res.status);
+          const data = await res.json();
+          if (data && typeof data === 'object' && (data.version !== undefined || data.partMaster || data.pallets || data.users)) {
+            if (!data.pallets || typeof data.pallets !== 'object') data.pallets = {};
+            if (!Array.isArray(data.items)) data.items = [];
+            if (!Array.isArray(data.logs)) data.logs = [];
+            if (!data.partMaster || typeof data.partMaster !== 'object') data.partMaster = {};
+            if (!Array.isArray(data.users) || data.users.length === 0) data.users = DEFAULT_USERS;
+            if (!Array.isArray(data.vehicleOptions) || data.vehicleOptions.length === 0) data.vehicleOptions = ['RS4', 'RS4 PE', 'JG', 'US4 VIP', 'RJ'];
+            if (!state.version || (data.version && data.version > state.version)) {
+              state = data;
+              saveStateLocal(state);
+              renderAll();
+              if (!silent) showToast('클라우드 최신 데이터를 불러왔습니다.', 'ok');
+            }
+          }
+          updateSyncBadge(true);
+        } catch (e) {
+          updateSyncBadge(false);
+          if (!silent) showToast('클라우드 동기화 연결을 확인하세요.', 'warn');
+        }
+      }
+
+      function updateSyncBadge(cloudOk) {
+        const dot = document.getElementById('sync-dot');
+        const label = document.getElementById('sync-label');
+        if (syncUrl && cloudOk) {
+          dot.className = 'w-2 h-2 rounded-full bg-emerald-400';
+          label.textContent = '클라우드 실시간';
+        } else if (syncUrl) {
+          dot.className = 'w-2 h-2 rounded-full bg-rose-400';
+          label.textContent = '동기화 오프라인';
+        } else {
+          dot.className = 'w-2 h-2 rounded-full bg-amber-400';
+          label.textContent = '로컬 동기화';
+        }
+      }
+
+      // =====================================================
+      // PARSERS (Pallet QR & Headrest DataMatrix)
+      // =====================================================
+      function parsePalletCode(raw) {
+        const s = String(raw || '').trim();
+        if (!s) return null;
+        // JSON format: {"pallet":"PLT-001"}
+        if (s.startsWith('{')) {
+          try {
+            const obj = JSON.parse(s);
+            if (obj.pallet || obj.id) return String(obj.pallet || obj.id).toUpperCase();
+          } catch (e) { /* ignore */ }
+        }
+        // Prefix format: HR_PLT|PLT-001
+        if (s.includes('|') && s.toUpperCase().startsWith('HR_PLT')) {
+          return s.split('|')[1].trim().toUpperCase();
+        }
+        // URL query format: ?pallet=PLT-001
+        const urlMatch = s.match(/[?&]pallet=([A-Za-z0-9_-]+)/i);
+        if (urlMatch) return urlMatch[1].toUpperCase();
+        // Direct Pallet ID (e.g., PLT-001)
+        if (/^[A-Z0-9_-]*PLT[-_]?\d+$/i.test(s) || state.pallets[s.toUpperCase()]) {
+          return s.toUpperCase();
+        }
+        return null;
+      }
+
+      function parseHeadrestDataMatrix(raw) {
+        const s = String(raw || '').trim();
+        if (!s) return null;
+        // Format 1: PART|LOT|SERIAL (e.g. 88210-AA100|LOT261124-A|HR261124-0099)
+        if (s.includes('|')) {
+          const parts = s.split('|').map(x => x.trim());
+          if (parts.length >= 2) {
+            const partNo = parts[0].toUpperCase();
+            const lot = parts[1].toUpperCase();
+            const serial = (parts[2] || (partNo + '-' + lot + '-' + Date.now().toString().slice(-4))).toUpperCase();
+            return { partNo, partName: getPartDisplayName(partNo), lot, serial };
+          }
+        }
+        // Format 2: Comma or Slash separated
+        if (s.includes(',')) {
+          const parts = s.split(',').map(x => x.trim());
+          if (parts.length >= 2) {
+            const partNo = parts[0].toUpperCase();
+            const lot = parts[1].toUpperCase();
+            const serial = (parts[2] || (partNo + '-' + lot + '-' + Date.now().toString().slice(-4))).toUpperCase();
+            return { partNo, partName: getPartDisplayName(partNo), lot, serial };
+          }
+        }
+        // Format 3: Hyundai/Kia 2D-like compact string (if >= 15 chars without delimiters)
+        if (s.length >= 12 && !s.startsWith('PLT')) {
+          const partNo = s.slice(0, 10).toUpperCase();
+          const lot = 'LOT-' + s.slice(10, 16).toUpperCase();
+          const serial = s.toUpperCase();
+          return { partNo, partName: getPartDisplayName(partNo), lot, serial };
+        }
+        return null;
+      }
+
+      // =====================================================
+      // CORE SCAN HANDLER
+      // =====================================================
+      function handleScannedPayload(rawCode) {
+        const code = String(rawCode || '').trim();
+        if (!code) return;
+
+        // Debounce duplicate consecutive camera reads within 1.5s
+        const nowMs = Date.now();
+        if (lastScanCooldown.code === code && nowMs - lastScanCooldown.time < 1500) {
+          return;
+        }
+        lastScanCooldown = { code, time: nowMs };
+
+        // 0. Direct Outbound Mode (출고: 파렛트 스캔 없이 제품만 스캔하여 자동 출고)
+        if (workActionMode === 'DIRECT_OUT') {
+          const dm = parseHeadrestDataMatrix(code);
+          if (!dm) {
+            showScanResult(false, '바코드 형식 오류', `인식할 수 없는 DataMatrix 형식입니다: ${code}`);
+            playBeep(false);
+            return;
+          }
+          processOutboundItem(dm, null, false);
+          return;
+        }
+
+        // 1. If in IN or OUT mode on a selected pallet -> check Slot barcode or Headrest DataMatrix
+        if (selectedPalletId && (workActionMode === 'IN' || workActionMode === 'OUT')) {
+          // Allow scanning another pallet QR directly to switch pallet
+          const maybePallet = parsePalletCode(code);
+          if (maybePallet) {
+            selectPallet(maybePallet);
+            return;
+          }
+
+          const dm = parseHeadrestDataMatrix(code);
+          if (!dm) {
+            showScanResult(false, '바코드 형식 오류', `인식할 수 없는 DataMatrix 형식입니다: ${code}`);
+            playBeep(false);
+            return;
+          }
+
+          if (workActionMode === 'IN') {
+            processInboundItem(dm, selectedPalletId, false);
+          } else if (workActionMode === 'OUT') {
+            processOutboundItem(dm, selectedPalletId, false);
+          }
+          return;
+        }
+
+        // 2. Otherwise -> treat as Pallet QR Scan
+        const palletId = parsePalletCode(code);
+        if (palletId) {
+          selectPallet(palletId);
+        } else {
+          showScanResult(false, '파렛트 QR 오류', `유효한 파렛트 QR코드가 아닙니다: ${code}`);
+          playBeep(false);
+        }
+      }
+
+      function showDuplicateAlarm(title, msg, detail, onForce) {
+        playBeep(false);
+        setTimeout(() => playBeep(false), 180);
+        document.getElementById('dup-alarm-title').textContent = title;
+        document.getElementById('dup-alarm-msg').textContent = msg;
+        document.getElementById('dup-alarm-detail').textContent = detail;
+        pendingDupAction = onForce || null;
+        const authBox = document.getElementById('dup-admin-auth-box');
+        const pinInp = document.getElementById('dup-admin-pin-input');
+        pinInp.value = '';
+        authBox.classList.toggle('hidden', !onForce);
+        document.getElementById('btn-dup-force').classList.toggle('hidden', !onForce);
+        document.getElementById('dup-alarm-modal').classList.remove('hidden');
+      }
+
+      function processInboundItem(dm, palletId, forceDup) {
+        const existsSerial = state.items.find(it => it.serial === dm.serial);
+        if (existsSerial) {
+          showScanResult(false, '중복 시리얼 차단', `이미 [${existsSerial.palletId}]에 적입된 시리얼입니다 (${dm.serial})`);
+          showDuplicateAlarm('입고 시리얼 중복 알람', `이미 [${existsSerial.palletId}]에 적입되어 있는 시리얼입니다.`, `품번: ${dm.partNo} | LOT: ${dm.lot} | S/N: ${dm.serial}`, null);
+          return;
+        }
+        const dupLot = state.items.find(it => it.partNo === dm.partNo && it.lot === dm.lot);
+        if (dupLot && !forceDup) {
+          showScanResult(false, '입고 LOT 중복 알람', `동일 품번/LOT가 이미 [${dupLot.palletId}]에 존재합니다 (${dm.lot})`);
+          showDuplicateAlarm(
+            '입고 LOT 중복 알람',
+            `동일 품번·LOT(${dm.lot})가 이미 [${dupLot.palletId}]에 입고되어 있습니다. 중복 스캔인지 확인하세요.`,
+            `품번: ${dm.partNo} | LOT: ${dm.lot} | 대상 파렛트: ${palletId}`,
+            () => processInboundItem(dm, palletId, true)
+          );
+          return;
+        }
+        const ts = new Date().toISOString();
+        const subLots = getSubLotsForPart(dm.partNo);
+        state.items.push({
+          serial: dm.serial,
+          partNo: dm.partNo,
+          partName: dm.partName,
+          lot: dm.lot,
+          foamLot: subLots.foamLot,
+          coverLot: subLots.coverLot,
+          stayLot: subLots.stayLot,
+          palletId: palletId,
+          inAt: ts,
+          inBy: `${currentUser.name}(${currentUser.id})`
+        });
+        if (!state.pallets[palletId]) state.pallets[palletId] = { id: palletId, updatedAt: ts, updatedBy: currentUser.id };
+        state.pallets[palletId].updatedAt = ts;
+        state.pallets[palletId].updatedBy = currentUser.id;
+        state.logs.unshift({
+          id: 'LOG-' + Date.now(),
+          time: ts,
+          action: '입고',
+          palletId: palletId,
+          partNo: dm.partNo,
+          lot: dm.lot,
+          serial: dm.serial,
+          user: `${currentUser.name}(${currentUser.id})`
+        });
+        state.version = Date.now();
+        pushStateToCloud();
+        playBeep(true);
+        showScanResult(true, `입고 완료 → ${palletId}`, `품번: ${dm.partNo} | LOT: ${dm.lot} (SUB1:${subLots.foamLot} / SUB2:${subLots.coverLot} / SUB3:${subLots.stayLot})`);
+        renderAll();
+      }
+
+      function processOutboundItem(dm, specificPalletId, forceDup) {
+        // Check if this LOT was already shipped before (LOT 중복 알람)
+        const prevShippedLot = state.logs.find(l => l.action === '출고' && l.partNo === dm.partNo && l.lot === dm.lot);
+        // Find matching item in stock (by serial first, then by partNo + lot)
+        let idx = -1;
+        if (specificPalletId) {
+          idx = state.items.findIndex(it => it.palletId === specificPalletId && it.serial === dm.serial);
+          if (idx === -1) idx = state.items.findIndex(it => it.palletId === specificPalletId && it.partNo === dm.partNo && it.lot === dm.lot);
+        } else {
+          idx = state.items.findIndex(it => it.serial === dm.serial);
+          if (idx === -1) idx = state.items.findIndex(it => it.partNo === dm.partNo && it.lot === dm.lot);
+        }
+
+        if (idx === -1) {
+          if (prevShippedLot) {
+            showScanResult(false, '출고 LOT 중복 알람', `이미 출고 처리된 품번/LOT입니다 (${dm.partNo} / ${dm.lot})`);
+            showDuplicateAlarm('출고 LOT 중복 알람', `이미 출고 완료된 품번·LOT입니다. 중복 출고 스캔을 차단했습니다.`, `품번: ${dm.partNo} | LOT: ${dm.lot} | 이전 출고 파렛트: ${prevShippedLot.palletId}`, null);
+          } else {
+            showScanResult(false, '출고 불가 (미재고)', `전산상 재고가 없는 제품입니다 (${dm.partNo} / ${dm.lot})`);
+            playBeep(false);
+          }
+          return;
+        }
+
+        if (prevShippedLot && !forceDup) {
+          showScanResult(false, '출고 LOT 중복 알람', `동일 품번/LOT(${dm.lot}) 출고 이력이 이미 존재합니다.`);
+          showDuplicateAlarm(
+            '출고 LOT 중복 알람',
+            `동일 품번·LOT(${dm.lot})가 이미 출고된 이력이 있습니다. 추가 출고인지 확인하세요.`,
+            `품번: ${dm.partNo} | LOT: ${dm.lot} | 대상 파렛트: ${state.items[idx].palletId}`,
+            () => processOutboundItem(dm, specificPalletId, true)
+          );
+          return;
+        }
+
+        const removed = state.items.splice(idx, 1)[0];
+        const ts = new Date().toISOString();
+        if (state.pallets[removed.palletId]) {
+          state.pallets[removed.palletId].updatedAt = ts;
+          state.pallets[removed.palletId].updatedBy = currentUser.id;
+        }
+        state.logs.unshift({
+          id: 'LOG-' + Date.now(),
+          time: ts,
+          action: '출고',
+          palletId: removed.palletId,
+          partNo: removed.partNo,
+          lot: removed.lot,
+          serial: removed.serial,
+          user: `${currentUser.name}(${currentUser.id})`
+        });
+        state.version = Date.now();
+        pushStateToCloud();
+        playBeep(true);
+        showScanResult(true, `자동 출고 완료 ← ${removed.palletId}`, `품번: ${removed.partNo} | LOT: ${removed.lot} | S/N: ${removed.serial}`);
+        renderAll();
+      }
+
+      function selectPallet(palletId) {
+        if (!state.pallets[palletId]) {
+          state.pallets[palletId] = { id: palletId, updatedAt: new Date().toISOString(), updatedBy: currentUser.id };
+          state.version = Date.now();
+          pushStateToCloud();
+        }
+        selectedPalletId = palletId;
+        workActionMode = null;
+        playBeep(true);
+        showScanResult(true, `파렛트 인식: ${palletId}`, '아래에서 [입고], [출고], [재고] 중 원하는 작업을 선택하세요.');
+        renderWorkView();
+      }
+
+      function showScanResult(ok, title, desc) {
+        const box = document.getElementById('last-scan-result');
+        const icon = document.getElementById('last-scan-icon');
+        const t = document.getElementById('last-scan-title');
+        const d = document.getElementById('last-scan-desc');
+        box.classList.remove('hidden', 'bg-emerald-50', 'border-emerald-300', 'text-emerald-900', 'bg-rose-50', 'border-rose-300', 'text-rose-900', 'flash-ok', 'flash-err');
+        void box.offsetWidth; // trigger reflow for animation
+        if (ok) {
+          box.classList.add('bg-emerald-50', 'border-emerald-300', 'text-emerald-900', 'flash-ok');
+          icon.innerHTML = '<i data-lucide="check-circle-2" class="w-5 h-5 text-emerald-600"></i>';
+        } else {
+          box.classList.add('bg-rose-50', 'border-rose-300', 'text-rose-900', 'flash-err');
+          icon.innerHTML = '<i data-lucide="alert-triangle" class="w-5 h-5 text-rose-600"></i>';
+        }
+        t.textContent = title;
+        d.textContent = desc;
+        if (syncUrl) {
+        pullStateFromCloud(true);
+      }
+      if (window.lucide) lucide.createIcons();
+      }
+
+      // =====================================================
+      // CAMERA & HID SCANNER CONTROL (iOS Safe)
+      // =====================================================
+      async function startCamera() {
+        if (isCameraRunning) return;
+        const container = document.getElementById('camera-container');
+        container.classList.remove('hidden');
+        try {
+          if (!html5QrCode) {
+            html5QrCode = new Html5Qrcode('qr-reader', {
+              formatsToSupport: [
+                Html5QrcodeSupportedFormats.QR_CODE,
+                Html5QrcodeSupportedFormats.DATA_MATRIX,
+                Html5QrcodeSupportedFormats.CODE_128
+              ],
+              verbose: false
+            });
+          }
+          await html5QrCode.start(
+            { facingMode: 'environment' },
+            { fps: 12, qrbox: { width: 240, height: 240 }, aspectRatio: 1.333 },
+            (decodedText) => {
+              handleScannedPayload(decodedText);
+            },
+            () => {}
+          );
+          isCameraRunning = true;
+          document.getElementById('camera-btn-label').textContent = '카메라 끄기';
+          // Ensure iOS video element does not hijack touch/keyboard focus
+          const vid = document.querySelector('#qr-reader video');
+          if (vid) {
+            vid.setAttribute('playsinline', 'true');
+            vid.setAttribute('muted', 'true');
+          }
+        } catch (err) {
+          container.classList.add('hidden');
+          showToast('카메라 권한이 없거나 HTTPS 환경이 아닙니다. 무선스캐너 또는 수동입력을 사용하세요.', 'warn');
+        }
+      }
+
+      async function stopCamera() {
+        if (!isCameraRunning || !html5QrCode) return;
+        try {
+          await html5QrCode.stop();
+        } catch (e) { /* ignore */ }
+        isCameraRunning = false;
+        document.getElementById('camera-container').classList.add('hidden');
+        document.getElementById('camera-btn-label').textContent = '카메라 켜기';
+      }
+
+      function setScanMethod(method) {
+        scanMethod = method;
+        document.querySelectorAll('.scan-mode-btn').forEach(btn => {
+          const active = btn.dataset.scanMode === method;
+          btn.className = active
+            ? 'scan-mode-btn px-2.5 py-1.5 rounded-lg text-xs font-bold bg-white text-blue-700 shadow-sm flex items-center gap-1'
+            : 'scan-mode-btn px-2.5 py-1.5 rounded-lg text-xs font-semibold text-slate-600 flex items-center gap-1';
+        });
+
+        const hidBox = document.getElementById('hid-container');
+        const camBtn = document.getElementById('btn-toggle-camera');
+        const manualInput = document.getElementById('manual-scan-input');
+
+        if (method === 'camera') {
+          hidBox.classList.add('hidden');
+          camBtn.classList.remove('hidden');
+        } else if (method === 'hid') {
+          stopCamera();
+          hidBox.classList.remove('hidden');
+          camBtn.classList.add('hidden');
+        } else {
+          stopCamera();
+          hidBox.classList.add('hidden');
+          camBtn.classList.add('hidden');
+          // Explicit user tap/switch opens iOS keyboard cleanly without lockup
+          setTimeout(() => manualInput.focus(), 50);
+        }
+      }
+
+      // Global HID Wireless Scanner Listener (Does NOT lock iOS virtual keyboard!)
+      let hidBuffer = '';
+      let hidLastKeyTime = 0;
+      document.addEventListener('keydown', function (e) {
+        if (!currentUser || (activeNav !== 'work' && activeNav !== 'audit')) return;
+        const activeTag = (document.activeElement && document.activeElement.tagName) || '';
+        // If user is intentionally typing in an input/select/textarea, let normal keyboard work!
+        if ((activeTag === 'INPUT' || activeTag === 'TEXTAREA' || activeTag === 'SELECT') &&
+            document.activeElement.id !== 'hid-capture-input') {
+          return;
+        }
+        const now = Date.now();
+        if (now - hidLastKeyTime > 120) {
+          hidBuffer = '';
+        }
+        hidLastKeyTime = now;
+
+        if (e.key === 'Enter') {
+          if (hidBuffer.length >= 3) {
+            e.preventDefault();
+            const captured = hidBuffer;
+            hidBuffer = '';
+            const hidInput = document.getElementById('hid-capture-input');
+            if (hidInput) hidInput.value = captured;
+            if (activeNav === 'audit') {
+              const aInp = document.getElementById('audit-hid-input');
+              if (aInp) aInp.value = captured;
+              handleAuditPayload(captured);
+            } else {
+              handleScannedPayload(captured);
+            }
+          }
+          hidBuffer = '';
+        } else if (e.key.length === 1) {
+          hidBuffer += e.key;
+        }
+      });
+
+      // =====================================================
+      // RENDERING FUNCTIONS
+      // =====================================================
+      function formatDateTime(iso) {
+        if (!iso) return '-';
+        const d = new Date(iso);
+        const pad = n => String(n).padStart(2, '0');
+        return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+      }
+
+      function getAgingBadge(isoDateStr) {
+        if (!isoDateStr) return '';
+        const t = new Date(isoDateStr).getTime();
+        if (isNaN(t)) return '';
+        const days = Math.floor((Date.now() - t) / (1000 * 60 * 60 * 24));
+        if (days >= 90) {
+          return `<span class="ml-1.5 inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-extrabold bg-rose-100 text-rose-800 border border-rose-300">90일+ (${days}일)</span>`;
+        }
+        if (days >= 60) {
+          return `<span class="ml-1.5 inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-extrabold bg-orange-100 text-orange-800 border border-orange-300">60일+ (${days}일)</span>`;
+        }
+        if (days >= 30) {
+          return `<span class="ml-1.5 inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-extrabold bg-amber-100 text-amber-800 border border-amber-300">30일+ (${days}일)</span>`;
+        }
+        return `<span class="ml-1.5 inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-slate-100 text-slate-600">${Math.max(0, days)}일</span>`;
+      }
+
+      function getWorstAgingBadge(datesArray) {
+        if (!Array.isArray(datesArray) || datesArray.length === 0) return '';
+        let maxDays = -1;
+        let oldestIso = null;
+        datesArray.forEach(d => {
+          const ts = new Date(d).getTime();
+          if (!isNaN(ts)) {
+            const diff = Math.floor((Date.now() - ts) / (1000 * 60 * 60 * 24));
+            if (diff > maxDays) {
+              maxDays = diff;
+              oldestIso = d;
+            }
+          }
+        });
+        return oldestIso ? getAgingBadge(oldestIso) : '';
+      }
+
+      let totalAgingFilter = 'ALL'; // 'ALL' | '30' | '60' | '90'
+
+      function getItemAgeDays(isoDateStr) {
+        if (!isoDateStr) return 0;
+        const t = new Date(isoDateStr).getTime();
+        if (isNaN(t)) return 0;
+        return Math.max(0, Math.floor((Date.now() - t) / (1000 * 60 * 60 * 24)));
+      }
+
+      function groupItemsByPartLot(items) {
+        const map = {};
+        items.forEach(it => {
+          const key = `${it.partNo}__${it.lot}`;
+          if (!map[key]) {
+            map[key] = {
+              partNo: it.partNo,
+              partName: it.partName,
+              lot: it.lot,
+              qty: 0,
+              lastIn: it.inAt,
+              inDates: [],
+              pallets: {},
+              palletSlots: {}
+            };
+          }
+          map[key].qty += 1;
+          if (it.inAt) map[key].inDates.push(it.inAt);
+          if (!map[key].slots) map[key].slots = [];
+          if (it.slotNo) map[key].slots.push(`#${it.slotNo}`);
+          if (it.inAt > map[key].lastIn) map[key].lastIn = it.inAt;
+          map[key].pallets[it.palletId] = (map[key].pallets[it.palletId] || 0) + 1;
+          if (!map[key].palletSlots[it.palletId]) map[key].palletSlots[it.palletId] = [];
+          if (it.slotNo) map[key].palletSlots[it.palletId].push(`#${it.slotNo}`);
+        });
+        return Object.values(map).sort((a, b) => a.partNo.localeCompare(b.partNo) || a.lot.localeCompare(b.lot));
+      }
+
+      function renderWorkView() {
+        const banner = document.getElementById('active-pallet-banner');
+        const actions = document.getElementById('pallet-action-buttons');
+        const stockPanel = document.getElementById('pallet-stock-panel');
+        const targetBadge = document.getElementById('scan-target-badge');
+        const subHint = document.getElementById('scan-sub-hint');
+
+        if (selectedPalletId) {
+          const pItems = state.items.filter(it => it.palletId === selectedPalletId);
+          banner.classList.remove('hidden');
+          actions.classList.remove('hidden');
+          document.getElementById('banner-pallet-id').textContent = selectedPalletId;
+          document.getElementById('banner-pallet-qty').textContent = `적재 ${pItems.length} EA`;
+          const pInfo = state.pallets[selectedPalletId];
+          document.getElementById('banner-pallet-meta').textContent = pInfo
+            ? `최근작업: ${formatDateTime(pInfo.updatedAt)} (${pInfo.updatedBy || '-'})`
+            : '신규 파렛트';
+
+          // Highlight active action button
+          const btnIn = document.getElementById('btn-mode-in');
+          const btnOut = document.getElementById('btn-mode-out');
+          const btnStock = document.getElementById('btn-mode-stock');
+          btnIn.classList.toggle('ring-4', workActionMode === 'IN');
+          btnIn.classList.toggle('ring-emerald-400', workActionMode === 'IN');
+          btnOut.classList.toggle('ring-4', workActionMode === 'OUT');
+          btnOut.classList.toggle('ring-amber-400', workActionMode === 'OUT');
+          btnStock.classList.toggle('ring-4', workActionMode === 'STOCK');
+          btnStock.classList.toggle('ring-blue-400', workActionMode === 'STOCK');
+
+          if (workActionMode === 'IN') {
+            targetBadge.textContent = `${selectedPalletId} · 입고 스캔 모드`;
+            targetBadge.className = 'px-2.5 py-1 rounded-lg bg-emerald-600 text-white text-xs font-bold';
+            subHint.textContent = '헤드레스트 DataMatrix를 연속 스캔하면 입고됩니다.';
+            stockPanel.classList.add('hidden');
+          } else if (workActionMode === 'OUT') {
+            targetBadge.textContent = `${selectedPalletId} · 출고 스캔 모드`;
+            targetBadge.className = 'px-2.5 py-1 rounded-lg bg-amber-600 text-white text-xs font-bold';
+            subHint.textContent = '헤드레스트 DataMatrix를 스캔하면 출고 처리됩니다.';
+            stockPanel.classList.add('hidden');
+          } else if (workActionMode === 'STOCK') {
+            targetBadge.textContent = `${selectedPalletId} · 재고 조회중`;
+            targetBadge.className = 'px-2.5 py-1 rounded-lg bg-blue-600 text-white text-xs font-bold';
+            subHint.textContent = '현재 파렛트의 품번 및 LOT별 재고현황입니다.';
+            stockPanel.classList.remove('hidden');
+            renderPalletStockPanel(selectedPalletId, pItems);
+          } else {
+            targetBadge.textContent = `${selectedPalletId} 선택됨`;
+            targetBadge.className = 'px-2.5 py-1 rounded-lg bg-slate-900 text-white text-xs font-bold';
+            subHint.textContent = '[입고], [출고], [재고] 버튼을 눌러주세요.';
+            stockPanel.classList.add('hidden');
+          }
+        } else if (workActionMode === 'DIRECT_OUT') {
+          banner.classList.add('hidden');
+          actions.classList.add('hidden');
+          stockPanel.classList.add('hidden');
+          targetBadge.textContent = '바로 출고 모드 (파렛트 스캔 불필요)';
+          targetBadge.className = 'px-2.5 py-1 rounded-lg bg-amber-600 text-white text-xs font-bold';
+          subHint.textContent = '헤드레스트 DataMatrix를 스캔하면 해당 품번/LOT의 파렛트에서 자동 출고됩니다.';
+        } else {
+          banner.classList.add('hidden');
+          actions.classList.add('hidden');
+          stockPanel.classList.add('hidden');
+          targetBadge.textContent = '파렛트 QR 스캔 대기';
+          targetBadge.className = 'px-2.5 py-1 rounded-lg bg-slate-900 text-white text-xs font-bold';
+          subHint.textContent = '파렛트 부착 QR코드를 스캔하거나 아래 목록에서 선택하세요.';
+        }
+
+        // Render quick pallet grid
+        const grid = document.getElementById('pallet-cards-grid');
+        const palletIds = Object.keys(state.pallets).sort();
+        document.getElementById('pallet-grid-summary').textContent = `총 ${palletIds.length}개 파렛트 · ${state.items.length} EA 적입`;
+        if (palletIds.length === 0) {
+          grid.innerHTML = '<div class="col-span-full py-6 text-center text-xs text-slate-400 font-semibold">등록된 파렛트가 없습니다. 파렛트 QR을 스캔하거나 [파렛트 QR 제작] 탭에서 파렛트를 생성하세요.</div>';
+        } else {
+        grid.innerHTML = palletIds.map(pid => {
+          const cnt = state.items.filter(it => it.palletId === pid).length;
+          const isSel = pid === selectedPalletId;
+          return `
+            <button type="button" data-select-pallet="${pid}"
+              class="p-3 rounded-xl border text-left transition ${isSel ? 'bg-blue-600 text-white border-blue-600 shadow-md' : 'bg-slate-50 hover:bg-slate-100 border-slate-200 text-slate-900'}">
+              <div class="flex items-center justify-between">
+                <span class="font-mono-code font-extrabold text-xs sm:text-sm">${pid}</span>
+                <span class="px-1.5 py-0.5 rounded text-[11px] font-bold ${isSel ? 'bg-white/20 text-white' : (cnt > 0 ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-200 text-slate-600')}">${cnt} EA</span>
+              </div>
+            </button>
+          `;
+        }).join('');
+        }
+
+        grid.querySelectorAll('[data-select-pallet]').forEach(btn => {
+          btn.addEventListener('click', () => selectPallet(btn.dataset.selectPallet));
+        });
+      }
+
+      function renderPalletStockPanel(palletId, pItems) {
+        document.getElementById('pallet-stock-title-id').textContent = palletId;
+        const grouped = groupItemsByPartLot(pItems);
+        const tbody = document.getElementById('pallet-stock-tbody');
+        if (grouped.length === 0) {
+          tbody.innerHTML = `<tr><td colspan="5" class="px-4 py-8 text-center text-slate-400 font-semibold">현재 이 파렛트에 적입된 헤드레스트가 없습니다.</td></tr>`;
+        } else {
+          tbody.innerHTML = grouped.map(g => `
+            <tr class="hover:bg-slate-50">
+              <td class="px-3 py-2.5 font-mono-code font-bold text-slate-900">${g.partNo}</td>
+              <td class="px-3 py-2.5 text-slate-700">${g.partName}</td>
+              <td class="px-3 py-2.5 font-mono-code font-semibold text-blue-700">${g.lot}</td>
+              <td class="px-3 py-2.5 text-right font-extrabold text-emerald-700">${g.qty} EA</td>
+              <td class="px-3 py-2.5 text-slate-500 text-xs whitespace-nowrap">${formatDateTime(g.lastIn)}${getWorstAgingBadge(g.inDates)}</td>
+            </tr>
+          `).join('');
+        }
+        document.getElementById('pallet-serial-count').textContent = pItems.length;
+        const serialList = document.getElementById('pallet-serial-list');
+        serialList.innerHTML = pItems.length === 0
+          ? '<p class="text-slate-400 py-2">내역 없음</p>'
+          : pItems.map(it => `
+              <div class="py-1.5 flex flex-wrap items-center justify-between gap-2">
+                <span><strong class="text-slate-800">${it.serial}</strong> · ${it.partNo} · <span class="text-blue-700">${it.lot}</span> <span class="text-[11px] text-slate-500">[SUB1:${it.foamLot || '-'} / SUB2:${it.coverLot || '-'} / SUB3:${it.stayLot || '-'}]</span></span>
+                <span class="text-slate-400">${formatDateTime(it.inAt)} · ${it.inBy}</span>
+              </div>
+            `).join('');
+      }
+
+      function renderTotalView() {
+        const palletIds = Object.keys(state.pallets).sort();
+        const activePallets = new Set(state.items.map(it => it.palletId)).size;
+        const uniqueParts = new Set(state.items.map(it => it.partNo)).size;
+        const uniqueLots = new Set(state.items.map(it => it.lot)).size;
+
+        const todayStr = new Date().toISOString().slice(0, 10);
+        const todayIn = state.logs.filter(l => l.action === '입고' && l.time.startsWith(todayStr)).length;
+        const todayOut = state.logs.filter(l => l.action === '출고' && l.time.startsWith(todayStr)).length;
+
+        document.getElementById('kpi-total-qty').textContent = `${state.items.length} EA`;
+        document.getElementById('kpi-active-pallets').textContent = `${activePallets} / ${palletIds.length}`;
+        document.getElementById('kpi-part-lot').textContent = `${uniqueParts} / ${uniqueLots}`;
+        document.getElementById('kpi-today-io').textContent = `${todayIn} / ${todayOut}`;
+
+        const filterSelect = document.getElementById('total-pallet-filter');
+        const prevVal = filterSelect.value || 'ALL';
+        filterSelect.innerHTML = '<option value="ALL">전체 파렛트</option>' +
+          palletIds.map(pid => `<option value="${pid}">${pid}</option>`).join('');
+        filterSelect.value = palletIds.includes(prevVal) ? prevVal : 'ALL';
+
+        const q = (document.getElementById('total-search-input').value || '').trim().toLowerCase();
+        const pFilter = filterSelect.value;
+
+        const longTermCount = state.items.filter(it => getItemAgeDays(it.inAt) >= 30).length;
+        const ltSummary = document.getElementById('long-term-summary-badge');
+        if (ltSummary) ltSummary.textContent = `장기재고(30일+): ${longTermCount} EA`;
+
+        let filtered = state.items;
+        if (totalAgingFilter !== 'ALL') {
+          const minDays = parseInt(totalAgingFilter, 10);
+          filtered = filtered.filter(it => getItemAgeDays(it.inAt) >= minDays);
+        }
+        if (pFilter !== 'ALL') filtered = filtered.filter(it => it.palletId === pFilter);
+        if (q) {
+          filtered = filtered.filter(it =>
+            it.partNo.toLowerCase().includes(q) ||
+            it.partName.toLowerCase().includes(q) ||
+            it.lot.toLowerCase().includes(q) ||
+            it.palletId.toLowerCase().includes(q) ||
+            it.serial.toLowerCase().includes(q)
+          );
+        }
+
+        const grouped = groupItemsByPartLot(filtered);
+        const tbody = document.getElementById('total-stock-tbody');
+        if (grouped.length === 0) {
+          tbody.innerHTML = `<tr><td colspan="6" class="px-4 py-8 text-center text-slate-400 font-semibold">조건에 맞는 재고가 없습니다.</td></tr>`;
+        } else {
+          tbody.innerHTML = grouped.map(g => {
+            const locBadges = Object.entries(g.pallets).sort().map(([pid, cnt]) =>
+              `<button type="button" data-jump-pallet="${pid}" class="inline-flex items-center gap-1 px-2.5 py-1 rounded-md bg-blue-50 hover:bg-blue-100 text-blue-800 font-mono-code font-bold text-xs border border-blue-200 mr-1 mb-1">${pid} (${cnt}EA)</button>`
+            ).join('');
+            const agingBadge = getWorstAgingBadge(g.inDates);
+            return `
+              <tr class="hover:bg-slate-50">
+                <td class="px-3 py-2.5 font-mono-code font-bold text-slate-900">${g.partNo}</td>
+                <td class="px-3 py-2.5 text-slate-700">${g.partName}</td>
+                <td class="px-3 py-2.5 font-mono-code font-semibold text-blue-700">${g.lot}</td>
+                <td class="px-3 py-2.5 whitespace-nowrap">${agingBadge}</td>
+                <td class="px-3 py-2.5 text-right font-extrabold text-emerald-700">${g.qty} EA</td>
+                <td class="px-3 py-2.5">${locBadges}</td>
+              </tr>
+            `;
+          }).join('');
+
+          tbody.querySelectorAll('[data-jump-pallet]').forEach(btn => {
+            btn.addEventListener('click', () => {
+              switchNav('work');
+              selectPallet(btn.dataset.jumpPallet);
+              workActionMode = 'STOCK';
+              renderWorkView();
+            });
+          });
+        }
+      }
+
+      function renderLogsView() {
+        const actionFilter = document.getElementById('log-action-filter').value;
+        const q = (document.getElementById('log-search-input').value || '').trim().toLowerCase();
+        let rows = state.logs;
+        if (actionFilter !== 'ALL') rows = rows.filter(l => l.action === actionFilter);
+        if (q) {
+          rows = rows.filter(l =>
+            l.palletId.toLowerCase().includes(q) ||
+            l.partNo.toLowerCase().includes(q) ||
+            l.lot.toLowerCase().includes(q) ||
+            l.serial.toLowerCase().includes(q) ||
+            l.user.toLowerCase().includes(q)
+          );
+        }
+        const tbody = document.getElementById('logs-tbody');
+        if (rows.length === 0) {
+          tbody.innerHTML = `<tr><td colspan="7" class="px-4 py-8 text-center text-slate-400">이력이 없습니다.</td></tr>`;
+          return;
+        }
+        tbody.innerHTML = rows.slice(0, 150).map(l => `
+          <tr class="hover:bg-slate-50">
+            <td class="px-3 py-2 text-slate-500 whitespace-nowrap">${formatDateTime(l.time)}</td>
+            <td class="px-3 py-2">
+              <span class="px-2 py-0.5 rounded font-bold ${l.action === '입고' ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'}">${l.action}</span>
+            </td>
+            <td class="px-3 py-2 font-bold text-slate-900">${l.palletId}</td>
+            <td class="px-3 py-2 text-slate-800">${l.partNo}</td>
+            <td class="px-3 py-2 text-blue-700 font-semibold">${l.lot}</td>
+            <td class="px-3 py-2 text-slate-600">${l.serial}</td>
+            <td class="px-3 py-2 text-slate-700">${l.user}</td>
+          </tr>
+        `).join('');
+      }
+
+      function renderAll() {
+        renderWorkView();
+        renderTotalView();
+        renderLogsView();
+        renderAuditView();
+        renderMasterList();
+        renderUserAdminList();
+        if (window.lucide) lucide.createIcons();
+      }
+
+      // =====================================================
+      // QR CODE GENERATOR (Requirement 1)
+      // =====================================================
+      function generatePalletQRs(e) {
+        if (e) e.preventDefault();
+        const count = Math.min(100, Math.max(1, parseInt(document.getElementById('qr-count').value || '10', 10)));
+        const prefix = document.getElementById('qr-prefix').value || 'PLT-';
+        const start = Math.max(1, parseInt(document.getElementById('qr-start').value || '1', 10));
+        const pad = Math.min(5, Math.max(1, parseInt(document.getElementById('qr-pad').value || '3', 10)));
+        const fmt = document.getElementById('qr-format').value;
+        const syncMaster = document.getElementById('qr-sync-pallets').checked;
+
+        const area = document.getElementById('print-qr-area');
+        area.innerHTML = '';
+
+        const now = new Date().toISOString();
+        for (let i = 0; i < count; i++) {
+          const num = String(start + i).padStart(pad, '0');
+          const pid = (prefix + num).toUpperCase();
+          let payload = pid;
+          if (fmt === 'PREFIX_TYPE') payload = `HR_PLT|${pid}`;
+          else if (fmt === 'JSON') payload = JSON.stringify({ pallet: pid });
+
+          if (syncMaster && !state.pallets[pid]) {
+            state.pallets[pid] = { id: pid, updatedAt: now, updatedBy: currentUser ? currentUser.id : 'ADMIN' };
+          }
+
+          const card = document.createElement('div');
+          card.className = 'qr-label-card bg-white border border-slate-300 rounded-xl p-3 flex flex-col items-center justify-center gap-2 shadow-sm';
+          const qrBox = document.createElement('div');
+          qrBox.className = 'p-1 bg-white';
+          const label = document.createElement('div');
+          label.className = 'text-center';
+          label.innerHTML = `<p class="font-mono-code font-extrabold text-sm text-slate-900">${pid}</p><p class="text-[10px] text-slate-500 font-mono-code truncate max-w-[130px]">${payload}</p>`;
+
+          card.appendChild(qrBox);
+          card.appendChild(label);
+          area.appendChild(card);
+
+          if (window.QRCode) {
+            new QRCode(qrBox, {
+              text: payload,
+              width: 112,
+              height: 112,
+              colorDark: '#0f172a',
+              colorLight: '#ffffff',
+              correctLevel: QRCode.CorrectLevel.M
+            });
+          }
+        }
+
+        if (syncMaster) {
+          state.version = Date.now();
+          pushStateToCloud();
+          renderAll();
+        }
+        showToast(`${count}개의 파렛트 QR코드가 생성되었습니다.`, 'ok');
+      }
+
+      // =====================================================
+      // EXCEL EXPORT (Requirement 13)
+      // =====================================================
+      function exportExcel(palletId) {
+        const dateTag = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+        const targetItems = palletId ? state.items.filter(it => it.palletId === palletId) : state.items;
+        const grouped = groupItemsByPartLot(targetItems);
+
+        const summaryRows = grouped.map(g => ({
+          '품번': g.partNo,
+          '차종/품명': g.partName,
+          'LOT번호': g.lot,
+          '수량(EA)': g.qty,
+          '적입파렛트': Object.entries(g.pallets).map(([p, c]) => `${p}(${c})`).join(', ')
+        }));
+
+        const detailRows = targetItems.map(it => {
+          const sub = getSubLotsForPart(it.partNo);
+          return {
+            '파렛트ID': it.palletId,
+            '품번': it.partNo,
+            '차종/품명': it.partName,
+            '완제품LOT': it.lot,
+            'SUB LOT 1': it.foamLot || sub.foamLot,
+            'SUB LOT 2': it.coverLot || sub.coverLot,
+            'SUB LOT 3': it.stayLot || sub.stayLot,
+            '시리얼(DataMatrix)': it.serial,
+            '입고일시': formatDateTime(it.inAt),
+            '작업자': it.inBy
+          };
+        });
+
+        const filename = palletId
+          ? `파렛트_${palletId}_재고현황_${dateTag}.xlsx`
+          : `전체_헤드레스트_재고현황_${dateTag}.xlsx`;
+
+        if (window.XLSX) {
+          const wb = XLSX.utils.book_new();
+          const ws1 = XLSX.utils.json_to_sheet(summaryRows.length ? summaryRows : [{ '안내': '재고 없음' }]);
+          XLSX.utils.book_append_sheet(wb, ws1, '품번_LOT별_요약');
+          const ws2 = XLSX.utils.json_to_sheet(detailRows.length ? detailRows : [{ '안내': '상세 내역 없음' }]);
+          XLSX.utils.book_append_sheet(wb, ws2, '상세재고_시리얼');
+
+          if (!palletId) {
+            const logRows = state.logs.map(l => ({
+              '일시': formatDateTime(l.time),
+              '구분': l.action,
+              '파렛트ID': l.palletId,
+              '품번': l.partNo,
+              'LOT번호': l.lot,
+              '시리얼': l.serial,
+              '작업자': l.user
+            }));
+            const ws3 = XLSX.utils.json_to_sheet(logRows.length ? logRows : [{ '안내': '이력 없음' }]);
+            XLSX.utils.book_append_sheet(wb, ws3, '입출고_이력');
+          }
+          XLSX.writeFile(wb, filename);
+          showToast(`${filename} 다운로드 완료`, 'ok');
+        } else {
+          // CSV Fallback if offline
+          const csvContent = '\uFEFF' + [
+            '파렛트ID,품번,차종/품명,LOT번호,시리얼,입고일시,작업자',
+            ...detailRows.map(r => `${r['파렛트ID']},${r['품번']},"${r['차종/품명']}",${r['LOT번호']},${r['시리얼']},${r['입고일시']},${r['작업자']}`)
+          ].join('\n');
+          const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = filename.replace('.xlsx', '.csv');
+          a.click();
+          URL.revokeObjectURL(url);
+        }
+      }
+
+      // =====================================================
+      // NAVIGATION & AUTHENTICATION
+      // =====================================================
+      function applyRolePermissions() {
+        const isAdmin = currentUser && currentUser.role === 'ADMIN';
+        document.querySelectorAll('[data-admin-only="true"]').forEach(el => {
+          el.classList.toggle('hidden', !isAdmin);
+        });
+      }
+
+      function switchNav(nav) {
+        const isAdmin = currentUser && currentUser.role === 'ADMIN';
+        if (!isAdmin && (nav === 'total' || nav === 'qrgen' || nav === 'logs')) {
+          nav = 'work';
+        }
+        activeNav = nav;
+        ['work', 'audit', 'total', 'qrgen', 'logs'].forEach(v => {
+          document.getElementById('view-' + v).classList.toggle('hidden', v !== nav);
+        });
+        document.querySelectorAll('.nav-tab').forEach(btn => {
+          const isAct = btn.dataset.nav === nav;
+          btn.className = isAct
+            ? 'nav-tab px-3.5 py-2.5 text-xs sm:text-sm font-bold border-b-2 border-blue-500 text-white whitespace-nowrap flex items-center gap-1.5'
+            : 'nav-tab px-3.5 py-2.5 text-xs sm:text-sm font-semibold border-b-2 border-transparent text-slate-400 hover:text-white whitespace-nowrap flex items-center gap-1.5';
+        });
+        document.querySelectorAll('.mobile-nav-btn').forEach(btn => {
+          const isAct = btn.dataset.nav === nav;
+          btn.className = isAct
+            ? 'mobile-nav-btn flex flex-col items-center gap-0.5 px-3 py-1 text-blue-600 font-bold text-[11px]'
+            : 'mobile-nav-btn flex flex-col items-center gap-0.5 px-3 py-1 text-slate-500 font-semibold text-[11px]';
+        });
+        if (nav !== 'work') stopCamera();
+        if (nav !== 'audit') stopAuditCamera();
+        if (nav === 'qrgen' && document.getElementById('print-qr-area').children.length === 0) {
+          generatePalletQRs();
+        }
+        applyRolePermissions();
+        renderAll();
+      }
+
+      function renderUserAdminList() {
+        const isAdmin = currentUser && currentUser.role === 'ADMIN';
+        document.getElementById('user-admin-section').classList.toggle('hidden', !isAdmin);
+        if (!isAdmin) return;
+
+        const box = document.getElementById('user-list-container');
+        box.innerHTML = state.users.map(u => `
+          <div class="px-3 py-2.5 flex items-center justify-between bg-white">
+            <div>
+              <span class="font-bold text-slate-900">${u.name}</span>
+              <span class="font-mono-code text-slate-500 ml-1">(${u.id})</span>
+              <span class="ml-1.5 px-1.5 py-0.5 rounded text-[10px] font-bold ${u.role === 'ADMIN' ? 'bg-blue-100 text-blue-700' : 'bg-slate-100 text-slate-700'}">${u.role}</span>
+            </div>
+            <div class="flex items-center gap-2">
+              <span class="font-mono-code text-slate-400">PIN: ${u.pin}</span>
+              ${u.id !== 'ADMIN' ? `<button type="button" data-del-user="${u.id}" class="text-rose-600 hover:underline font-bold">삭제</button>` : ''}
+            </div>
+          </div>
+        `).join('');
+
+        box.querySelectorAll('[data-del-user]').forEach(btn => {
+          btn.addEventListener('click', () => {
+            state.users = state.users.filter(u => u.id !== btn.dataset.delUser);
+            state.version = Date.now();
+            pushStateToCloud();
+            renderUserAdminList();
+            showToast('사용자가 삭제되었습니다.', 'info');
+          });
+        });
+      }
+
+      // =====================================================
+      // EVENT LISTENERS
+      // =====================================================
+      document.getElementById('login-form').addEventListener('submit', function (e) {
+        e.preventDefault();
+        const empId = document.getElementById('login-emp-id').value.trim().toUpperCase();
+        const pin = document.getElementById('login-pin').value.trim();
+        const user = state.users.find(u => u.id === empId && u.pin === pin && u.active !== false);
+        if (!user) {
+          playBeep(false);
+          showToast('사번 또는 PIN 번호가 일치하지 않습니다.', 'err');
+          return;
+        }
+        currentUser = user;
+        document.getElementById('login-screen').classList.add('hidden');
+        document.getElementById('app-shell').classList.remove('hidden');
+        document.getElementById('header-user-badge').textContent = `${user.name} (${user.id}) · ${user.role === 'ADMIN' ? '관리자' : '작업자'}`;
+        applyRolePermissions();
+        switchNav('work');
+        playBeep(true);
+        updateSyncBadge(Boolean(syncUrl));
+        renderAll();
+        if (syncUrl) pullStateFromCloud(true);
+      });
+
+      document.getElementById('btn-logout').addEventListener('click', () => {
+        stopCamera();
+        currentUser = null;
+        selectedPalletId = null;
+        workActionMode = null;
+        document.getElementById('login-pin').value = '';
+        document.getElementById('app-shell').classList.add('hidden');
+        document.getElementById('login-screen').classList.remove('hidden');
+      });
+
+      document.querySelectorAll('[data-nav]').forEach(btn => {
+        btn.addEventListener('click', () => switchNav(btn.dataset.nav));
+      });
+      document.getElementById('btn-top-total-inv').addEventListener('click', () => switchNav('total'));
+
+      // Scan mode buttons
+      document.querySelectorAll('.scan-mode-btn').forEach(btn => {
+        btn.addEventListener('click', () => setScanMethod(btn.dataset.scanMode));
+      });
+      document.getElementById('btn-toggle-camera').addEventListener('click', () => {
+        if (isCameraRunning) stopCamera();
+        else startCamera();
+      });
+
+      // Manual scan form
+      document.getElementById('manual-scan-form').addEventListener('submit', function (e) {
+        e.preventDefault();
+        const inp = document.getElementById('manual-scan-input');
+        const val = inp.value.trim();
+        if (!val) return;
+        inp.value = '';
+        handleScannedPayload(val);
+      });
+
+      // Quick scan test chips
+      document.querySelectorAll('[data-quick-scan]').forEach(btn => {
+        btn.addEventListener('click', () => handleScannedPayload(btn.dataset.quickScan));
+      });
+      document.getElementById('btn-sim-dm-ok').addEventListener('click', () => {
+        if (!selectedPalletId) {
+          selectPallet('PLT-001');
+          workActionMode = 'IN';
+          renderWorkView();
+        } else if (!workActionMode || workActionMode === 'STOCK') {
+          workActionMode = 'IN';
+          renderWorkView();
+        }
+        const masterKeys = Object.keys(state.partMaster || {});
+        const parts = masterKeys.length ? masterKeys : ['88210-AA100'];
+        const p = parts[Math.floor(Math.random() * parts.length)];
+        const sn = 'HR' + new Date().toISOString().slice(2, 10).replace(/-/g, '') + '-' + Math.floor(1000 + Math.random() * 9000);
+        if (workActionMode === 'OUT') {
+          const existing = state.items.find(it => it.palletId === selectedPalletId);
+          if (existing) {
+            handleScannedPayload(`${existing.partNo}|${existing.lot}|${existing.serial}`);
+            return;
+          }
+        }
+        handleScannedPayload(`${p}|LOT261124-A|${sn}`);
+      });
+
+      // Action buttons (입고 / 출고 / 재고)
+      document.getElementById('btn-mode-in').addEventListener('click', () => {
+        workActionMode = 'IN';
+        renderWorkView();
+      });
+      document.getElementById('btn-mode-out').addEventListener('click', () => {
+        workActionMode = 'OUT';
+        renderWorkView();
+      });
+      document.getElementById('btn-mode-stock').addEventListener('click', () => {
+        workActionMode = 'STOCK';
+        renderWorkView();
+      });
+      document.getElementById('btn-change-pallet').addEventListener('click', () => {
+        selectedPalletId = null;
+        workActionMode = null;
+        document.getElementById('last-scan-result').classList.add('hidden');
+        renderWorkView();
+      });
+
+      // Filters & Exports
+      document.querySelectorAll('.aging-filter-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          totalAgingFilter = btn.dataset.agingFilter;
+          document.querySelectorAll('.aging-filter-btn').forEach(b => {
+            const isAct = b.dataset.agingFilter === totalAgingFilter;
+            if (isAct) {
+              b.className = 'aging-filter-btn px-3 py-1.5 rounded-lg text-xs font-bold bg-slate-900 text-white shadow-sm';
+            } else {
+              const f = b.dataset.agingFilter;
+              const styleMap = {
+                ALL: 'bg-white border border-slate-300 text-slate-700 hover:bg-slate-100',
+                '30': 'bg-white border border-amber-300 text-amber-800 hover:bg-amber-50',
+                '60': 'bg-white border border-orange-300 text-orange-800 hover:bg-orange-50',
+                '90': 'bg-white border border-rose-300 text-rose-800 hover:bg-rose-50'
+              };
+              b.className = `aging-filter-btn px-3 py-1.5 rounded-lg text-xs font-bold ${styleMap[f] || styleMap.ALL}`;
+            }
+          });
+          renderTotalView();
+        });
+      });
+      document.getElementById('total-search-input').addEventListener('input', renderTotalView);
+      document.getElementById('total-pallet-filter').addEventListener('change', renderTotalView);
+      document.getElementById('log-action-filter').addEventListener('change', renderLogsView);
+      document.getElementById('log-search-input').addEventListener('input', renderLogsView);
+      document.getElementById('btn-export-pallet-xlsx').addEventListener('click', () => {
+        if (selectedPalletId) exportExcel(selectedPalletId);
+      });
+      document.getElementById('btn-export-all-xlsx').addEventListener('click', () => exportExcel(null));
+
+      // QR Generator
+      document.getElementById('qrgen-form').addEventListener('submit', generatePalletQRs);
+      document.getElementById('btn-print-qr').addEventListener('click', () => window.print());
+
+      // Settings Tabs
+      function switchSettingsTab(tabName) {
+        const isAdmin = currentUser && currentUser.role === 'ADMIN';
+        if (!isAdmin) tabName = 'account';
+        ['master', 'account', 'sync'].forEach(t => {
+          document.getElementById('settings-panel-' + t).classList.toggle('hidden', t !== tabName);
+        });
+        document.querySelectorAll('.settings-tab-btn').forEach(btn => {
+          const act = btn.dataset.settingsTab === tabName;
+          btn.className = act
+            ? 'settings-tab-btn px-3 py-2.5 text-xs sm:text-sm font-bold border-b-2 border-blue-600 text-blue-700 whitespace-nowrap'
+            : 'settings-tab-btn px-3 py-2.5 text-xs sm:text-sm font-semibold border-b-2 border-transparent text-slate-600 whitespace-nowrap';
+        });
+        applyRolePermissions();
+      }
+      document.querySelectorAll('.settings-tab-btn').forEach(btn => {
+        btn.addEventListener('click', () => switchSettingsTab(btn.dataset.settingsTab));
+      });
+
+      // Part Master Rendering & CRUD
+      function renderMasterList() {
+        const masterMap = state.partMaster || {};
+        const q = (document.getElementById('master-search-input').value || '').trim().toLowerCase();
+        const rows = Object.values(masterMap).filter(m =>
+          !q ||
+          m.vehicle.toLowerCase().includes(q) ||
+          m.partNo.toLowerCase().includes(q) ||
+          m.itemType.toLowerCase().includes(q) ||
+          m.spec.toLowerCase().includes(q)
+        ).sort((a, b) => a.vehicle.localeCompare(b.vehicle) || a.partNo.localeCompare(b.partNo));
+
+        document.getElementById('master-count-badge').textContent = Object.keys(masterMap).length;
+        const tbody = document.getElementById('master-list-tbody');
+        if (rows.length === 0) {
+          tbody.innerHTML = '<tr><td colspan="5" class="px-3 py-6 text-center text-slate-400">등록된 기준정보가 없습니다.</td></tr>';
+          return;
+        }
+        tbody.innerHTML = rows.map(m => `
+          <tr class="hover:bg-slate-50">
+            <td class="px-2.5 py-2 font-bold text-slate-900 whitespace-nowrap">${m.vehicle}</td>
+            <td class="px-2.5 py-2 font-mono-code font-semibold text-blue-700 whitespace-nowrap">${m.partNo}</td>
+            <td class="px-2.5 py-2 font-bold text-emerald-700 whitespace-nowrap">${m.itemType}</td>
+            <td class="px-2.5 py-2 text-slate-700">${m.spec}</td>
+            <td class="px-2.5 py-2 font-mono-code text-[11px] text-slate-600">SUB1:${m.foamLot || '-'} / SUB2:${m.coverLot || '-'} / SUB3:${m.stayLot || '-'}</td>
+            <td class="px-2.5 py-2 text-center">
+              <button type="button" data-del-master="${m.partNo}" class="text-rose-600 hover:underline font-bold">삭제</button>
+            </td>
+          </tr>
+        `).join('');
+
+        tbody.querySelectorAll('[data-del-master]').forEach(btn => {
+          btn.addEventListener('click', () => {
+            delete state.partMaster[btn.dataset.delMaster];
+            state.version = Date.now();
+            pushStateToCloud();
+            renderMasterList();
+            showToast('기준정보가 삭제되었습니다.', 'info');
+          });
+        });
+      }
+
+      document.getElementById('master-search-input').addEventListener('input', renderMasterList);
+
+      // Popup Picker for 차종 & 품목 (차종 추가 등록 지원)
+      let pickerOnAddCallback = null;
+      function openPickerModal(title, options, onSelect, onAddNew) {
+        document.getElementById('picker-modal-title').textContent = title;
+        const grid = document.getElementById('picker-options-grid');
+        grid.innerHTML = options.map(opt => `
+          <button type="button" data-pick-val="${opt}"
+            class="py-3.5 px-3 rounded-xl border-2 border-slate-200 bg-slate-50 hover:bg-blue-600 hover:border-blue-600 hover:text-white font-bold text-sm text-slate-900 transition">
+            ${opt}
+          </button>
+        `).join('');
+        grid.querySelectorAll('[data-pick-val]').forEach(btn => {
+          btn.addEventListener('click', () => {
+            onSelect(btn.dataset.pickVal);
+            document.getElementById('picker-modal').classList.add('hidden');
+          });
+        });
+        const addForm = document.getElementById('picker-add-form');
+        const addInp = document.getElementById('picker-add-input');
+        addInp.value = '';
+        pickerOnAddCallback = onAddNew ? (newVal) => { onAddNew(newVal); onSelect(newVal); } : null;
+        addForm.classList.toggle('hidden', !onAddNew);
+        document.getElementById('picker-modal').classList.remove('hidden');
+      }
+
+      document.getElementById('picker-add-form').addEventListener('submit', function (e) {
+        e.preventDefault();
+        const val = document.getElementById('picker-add-input').value.trim().toUpperCase();
+        if (!val) return;
+        if (pickerOnAddCallback) pickerOnAddCallback(val);
+        document.getElementById('picker-modal').classList.add('hidden');
+      });
+
+      document.getElementById('btn-close-picker').addEventListener('click', () => {
+        document.getElementById('picker-modal').classList.add('hidden');
+      });
+
+      document.getElementById('btn-pick-vehicle').addEventListener('click', () => {
+        openPickerModal('차종 선택 (신규 차종 추가 가능)', getVehicleOptions(), val => {
+          document.getElementById('master-vehicle-input').value = val;
+          const lbl = document.getElementById('pick-vehicle-label');
+          lbl.textContent = val;
+          lbl.className = 'text-slate-900 font-bold';
+        }, newVehicle => {
+          if (!Array.isArray(state.vehicleOptions)) state.vehicleOptions = [...DEFAULT_VEHICLE_OPTIONS];
+          if (!state.vehicleOptions.includes(newVehicle)) {
+            state.vehicleOptions.push(newVehicle);
+            state.version = Date.now();
+            pushStateToCloud();
+            showToast(`신규 차종 [${newVehicle}]이 추가되었습니다.`, 'ok');
+          }
+        });
+      });
+
+      document.getElementById('btn-pick-itemtype').addEventListener('click', () => {
+        openPickerModal('품목 선택', ITEM_TYPE_OPTIONS, val => {
+          document.getElementById('master-itemtype-input').value = val;
+          const lbl = document.getElementById('pick-itemtype-label');
+          lbl.textContent = val;
+          lbl.className = 'text-slate-900 font-bold';
+        }, null);
+      });
+
+      document.getElementById('add-master-form').addEventListener('submit', function (e) {
+        e.preventDefault();
+        const vehicle = document.getElementById('master-vehicle-input').value.trim();
+        const itemType = document.getElementById('master-itemtype-input').value.trim();
+        const partNo = document.getElementById('master-partno-input').value.trim().toUpperCase();
+        const spec = document.getElementById('master-spec-input').value.trim();
+        const foamLot = document.getElementById('master-foam-lot').value.trim().toUpperCase() || '-';
+        const coverLot = document.getElementById('master-cover-lot').value.trim().toUpperCase() || '-';
+        const stayLot = document.getElementById('master-stay-lot').value.trim().toUpperCase() || '-';
+        if (!vehicle || !itemType) {
+          showToast('차종과 품목을 팝업에서 선택해 주세요.', 'warn');
+          return;
+        }
+        if (!partNo || !spec) {
+          showToast('품번과 사양을 입력해 주세요.', 'warn');
+          return;
+        }
+        if (!state.partMaster) state.partMaster = {};
+        state.partMaster[partNo] = { vehicle, partNo, itemType, spec, foamLot, coverLot, stayLot };
+        state.version = Date.now();
+        pushStateToCloud();
+        renderMasterList();
+        document.getElementById('master-partno-input').value = '';
+        document.getElementById('master-spec-input').value = '';
+        document.getElementById('master-foam-lot').value = '';
+        document.getElementById('master-cover-lot').value = '';
+        document.getElementById('master-stay-lot').value = '';
+        showToast(`기준정보 [${partNo}] 등록 완료`, 'ok');
+      });
+
+      // Excel Template Download & Upload for Part Master
+      document.getElementById('btn-download-master-tpl').addEventListener('click', () => {
+        const masterVals = Object.values(state.partMaster || {});
+        const sampleRows = (masterVals.length ? masterVals : [{ vehicle: 'RS4', partNo: '88210-AA100', itemType: 'FRT', spec: '나파 블랙' }]).map(m => ({
+          '차종': m.vehicle,
+          '품번': m.partNo,
+          '품목': m.itemType,
+          '사양': m.spec
+        }));
+        if (window.XLSX) {
+          const wb = XLSX.utils.book_new();
+          const ws = XLSX.utils.json_to_sheet(sampleRows);
+          XLSX.utils.book_append_sheet(wb, ws, '기준정보');
+          XLSX.writeFile(wb, '헤드레스트_기준정보_양식.xlsx');
+          showToast('기준정보 엑셀 양식을 다운로드했습니다.', 'ok');
+        }
+      });
+
+      document.getElementById('input-upload-master-xlsx').addEventListener('change', function (e) {
+        const file = e.target.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = function (ev) {
+          try {
+            if (!window.XLSX) {
+              showToast('엑셀 파서 라이브러리가 로드되지 않았습니다.', 'err');
+              return;
+            }
+            const data = new Uint8Array(ev.target.result);
+            const wb = XLSX.read(data, { type: 'array' });
+            const firstSheet = wb.Sheets[wb.SheetNames[0]];
+            const rows = XLSX.utils.sheet_to_json(firstSheet, { defval: '' });
+            if (!state.partMaster) state.partMaster = {};
+            let added = 0;
+            rows.forEach(r => {
+              const vehicle = String(r['차종'] || r['VEHICLE'] || r['vehicle'] || '').trim();
+              const partNo = String(r['품번'] || r['PART_NO'] || r['partNo'] || '').trim().toUpperCase();
+              const itemType = String(r['품목'] || r['ITEM'] || r['itemType'] || '').trim().toUpperCase();
+              const spec = String(r['사양'] || r['SPEC'] || r['spec'] || '').trim();
+              if (partNo && (vehicle || itemType || spec)) {
+                const vName = (vehicle || 'RS4').toUpperCase();
+                if (!Array.isArray(state.vehicleOptions)) state.vehicleOptions = [...DEFAULT_VEHICLE_OPTIONS];
+                if (!state.vehicleOptions.includes(vName)) state.vehicleOptions.push(vName);
+                state.partMaster[partNo] = {
+                  vehicle: vName,
+                  partNo,
+                  itemType: itemType || 'FRT',
+                  spec: spec || '-'
+                };
+                added += 1;
+              }
+            });
+            if (added > 0) {
+              state.version = Date.now();
+              pushStateToCloud();
+              renderMasterList();
+              showToast(`엑셀에서 ${added}건의 기준정보가 등록되었습니다.`, 'ok');
+            } else {
+              showToast('업로드할 유효한 기준정보(차종/품번/품목/사양)가 없습니다.', 'warn');
+            }
+          } catch (err) {
+            showToast('엑셀 파일을 처리할 수 없습니다.', 'err');
+          }
+          e.target.value = '';
+        };
+        reader.readAsArrayBuffer(file);
+      });
+
+      // Password (PIN) Change Popup Logic
+      document.getElementById('btn-open-pin-modal').addEventListener('click', () => {
+        document.getElementById('change-pin-form').reset();
+        document.getElementById('pin-modal').classList.remove('hidden');
+      });
+      document.getElementById('btn-close-pin-modal').addEventListener('click', () => {
+        document.getElementById('pin-modal').classList.add('hidden');
+      });
+      document.getElementById('btn-cancel-pin-modal').addEventListener('click', () => {
+        document.getElementById('pin-modal').classList.add('hidden');
+      });
+      document.getElementById('change-pin-form').addEventListener('submit', function (e) {
+        e.preventDefault();
+        if (!currentUser) return;
+        const curPin = document.getElementById('pin-current-input').value.trim();
+        const newPin = document.getElementById('pin-new-input').value.trim();
+        if (!/^\d{4}$/.test(curPin) || !/^\d{4}$/.test(newPin)) {
+          showToast('패스워드는 숫자 4자리로 입력해야 합니다.', 'err');
+          return;
+        }
+        if (curPin !== currentUser.pin) {
+          playBeep(false);
+          showToast('기존 4자리 패스워드가 일치하지 않습니다.', 'err');
+          return;
+        }
+        const idx = state.users.findIndex(u => u.id === currentUser.id);
+        if (idx !== -1) {
+          state.users[idx].pin = newPin;
+          currentUser.pin = newPin;
+          state.version = Date.now();
+          pushStateToCloud();
+          renderUserAdminList();
+        }
+        document.getElementById('pin-modal').classList.add('hidden');
+        playBeep(true);
+        showToast('패스워드가 성공적으로 변경되었습니다.', 'ok');
+      });
+
+      // Settings Modal
+      document.getElementById('btn-open-settings').addEventListener('click', () => {
+        document.getElementById('setting-sync-type').value = syncType;
+        document.getElementById('setting-sync-url').value = syncUrl;
+        const isAdmin = currentUser && currentUser.role === 'ADMIN';
+        applyRolePermissions();
+        renderMasterList();
+        renderUserAdminList();
+        switchSettingsTab(isAdmin ? 'master' : 'account');
+        document.getElementById('settings-modal').classList.remove('hidden');
+        if (window.lucide) lucide.createIcons();
+      });
+      document.getElementById('sync-status-btn').addEventListener('click', () => {
+        document.getElementById('btn-open-settings').click();
+      });
+      document.getElementById('btn-close-settings').addEventListener('click', () => {
+        document.getElementById('settings-modal').classList.add('hidden');
+      });
+
+      document.getElementById('btn-save-sync').addEventListener('click', () => {
+        syncType = document.getElementById('setting-sync-type').value || 'firebase';
+        syncUrl = document.getElementById('setting-sync-url').value.trim();
+        try {
+          localStorage.setItem(SYNC_TYPE_KEY, syncType);
+          localStorage.setItem(SYNC_URL_KEY, syncUrl);
+        } catch (e) { /* ignore */ }
+        if (syncUrl) {
+          pullStateFromCloud(false);
+          showToast('서버 설정이 저장되었습니다.', 'ok');
+        } else {
+          updateSyncBadge(false);
+          showToast('로컬 동기화 모드로 전환되었습니다.', 'info');
+        }
+      });
+      document.getElementById('btn-reset-sync-default').addEventListener('click', () => {
+        syncType = 'firebase';
+        syncUrl = DEFAULT_SYNC_URL;
+        document.getElementById('setting-sync-type').value = syncType;
+        document.getElementById('setting-sync-url').value = syncUrl;
+        try {
+          localStorage.setItem(SYNC_TYPE_KEY, syncType);
+          localStorage.setItem(SYNC_URL_KEY, syncUrl);
+        } catch (e) { /* ignore */ }
+        pullStateFromCloud(false);
+        showToast('기본 Firebase 서버로 복원되었습니다.', 'ok');
+      });
+      document.getElementById('btn-manual-pull').addEventListener('click', () => pullStateFromCloud(false));
+
+      document.getElementById('btn-export-json').addEventListener('click', () => {
+        const blob = new Blob([JSON.stringify(state, null, 2)], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `headrest_wms_backup_${new Date().toISOString().slice(0, 10)}.json`;
+        a.click();
+        URL.revokeObjectURL(url);
+      });
+
+      document.getElementById('input-import-json').addEventListener('change', function (e) {
+        const file = e.target.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = function (ev) {
+          try {
+            const parsed = JSON.parse(ev.target.result);
+            if (parsed && parsed.pallets && Array.isArray(parsed.items)) {
+              state = parsed;
+              pushStateToCloud();
+              renderAll();
+              showToast('JSON 데이터가 복원되었습니다.', 'ok');
+            } else {
+              showToast('유효하지 않은 백업 파일입니다.', 'err');
+            }
+          } catch (err) {
+            showToast('파일을 읽을 수 없습니다.', 'err');
+          }
+        };
+        reader.readAsText(file);
+      });
+
+      document.getElementById('add-user-form').addEventListener('submit', function (e) {
+        e.preventDefault();
+        const id = document.getElementById('new-user-id').value.trim().toUpperCase();
+        const name = document.getElementById('new-user-name').value.trim();
+        const pin = document.getElementById('new-user-pin').value.trim();
+        if (!id || !name || !pin) return;
+        if (state.users.some(u => u.id === id)) {
+          showToast('이미 존재하는 사번입니다.', 'err');
+          return;
+        }
+        state.users.push({ id, name, pin, role: 'WORKER', active: true });
+        state.version = Date.now();
+        pushStateToCloud();
+        document.getElementById('add-user-form').reset();
+        renderUserAdminList();
+        showToast(`${name}(${id}) 사용자가 추가되었습니다.`, 'ok');
+      });
+
+      document.getElementById('btn-reset-demo').addEventListener('click', () => {
+        const nextVer = Date.now();
+        state = createInitialState();
+        state.version = nextVer;
+        auditItems = [];
+        auditPalletId = null;
+        selectedPalletId = null;
+        workActionMode = null;
+        pushStateToCloud();
+        renderAll();
+        showToast('모든 파렛트·재고·기준정보 데이터가 완전 초기화되었습니다.', 'info');
+      });
+
+      // =====================================================
+      // DIRECT OUTBOUND & DUPLICATE ALARM MODAL LISTENERS
+      // =====================================================
+      document.getElementById('btn-direct-out').addEventListener('click', () => {
+        selectedPalletId = null;
+        workActionMode = 'DIRECT_OUT';
+        document.getElementById('last-scan-result').classList.add('hidden');
+        renderWorkView();
+        showToast('바로 출고 모드: 제품 DataMatrix만 스캔하세요.', 'info');
+      });
+
+      document.getElementById('btn-dup-cancel').addEventListener('click', () => {
+        pendingDupAction = null;
+        document.getElementById('dup-alarm-modal').classList.add('hidden');
+      });
+      document.getElementById('btn-dup-force').addEventListener('click', () => {
+        const enteredPin = document.getElementById('dup-admin-pin-input').value.trim();
+        const adminMatched = state.users.find(u => u.role === 'ADMIN' && u.active !== false && u.pin === enteredPin);
+        if (!adminMatched) {
+          playBeep(false);
+          showToast('관리자(ADMIN) 4자리 PIN 번호가 일치하지 않아 강제 진행이 차단되었습니다.', 'err');
+          return;
+        }
+        const fn = pendingDupAction;
+        pendingDupAction = null;
+        document.getElementById('dup-alarm-modal').classList.add('hidden');
+        showToast(`관리자(${adminMatched.name}) 승인으로 강제 처리되었습니다.`, 'warn');
+        if (fn) fn();
+      });
+
+      // =====================================================
+      // PHYSICAL INVENTORY AUDIT (재고실사) ENGINE
+      // =====================================================
+      function showAuditResult(ok, title, desc) {
+        const box = document.getElementById('audit-last-result');
+        const icon = document.getElementById('audit-last-icon');
+        const t = document.getElementById('audit-last-title');
+        const d = document.getElementById('audit-last-desc');
+        box.classList.remove('hidden', 'bg-emerald-50', 'border-emerald-300', 'text-emerald-900', 'bg-rose-50', 'border-rose-300', 'text-rose-900');
+        if (ok) {
+          box.classList.add('bg-emerald-50', 'border-emerald-300', 'text-emerald-900');
+          icon.innerHTML = '<i data-lucide="check-circle-2" class="w-5 h-5 text-emerald-600"></i>';
+        } else {
+          box.classList.add('bg-rose-50', 'border-rose-300', 'text-rose-900');
+          icon.innerHTML = '<i data-lucide="alert-triangle" class="w-5 h-5 text-rose-600"></i>';
+        }
+        t.textContent = title;
+        d.textContent = desc;
+        if (window.lucide) lucide.createIcons();
+      }
+
+      function processAuditItem(dm, forceDup) {
+        if (!auditPalletId) {
+          showAuditResult(false, '파렛트 미지정', '먼저 파렛트 QR코드를 스캔해 주세요.');
+          playBeep(false);
+          return;
+        }
+        const dupSerial = auditItems.find(it => it.serial === dm.serial);
+        if (dupSerial) {
+          showAuditResult(false, '실사 시리얼 중복', `이미 [${dupSerial.palletId}]에 실사 등록된 시리얼입니다.`);
+          showDuplicateAlarm('재고실사 시리얼 중복 알람', `이미 [${dupSerial.palletId}]에 실사 스캔된 시리얼입니다.`, `품번: ${dm.partNo} | LOT: ${dm.lot} | S/N: ${dm.serial}`, null);
+          return;
+        }
+        const dupLot = auditItems.find(it => it.partNo === dm.partNo && it.lot === dm.lot);
+        if (dupLot && !forceDup) {
+          showAuditResult(false, '실사 LOT 중복 알람', `동일 품번/LOT(${dm.lot})가 이미 실사 스캔되었습니다.`);
+          showDuplicateAlarm(
+            '재고실사 LOT 중복 알람',
+            `동일 품번·LOT(${dm.lot})가 이미 [${dupLot.palletId}]에 실사 등록되어 있습니다. 중복 스캔인지 확인하세요.`,
+            `품번: ${dm.partNo} | LOT: ${dm.lot} | 현재 파렛트: ${auditPalletId}`,
+            () => processAuditItem(dm, true)
+          );
+          return;
+        }
+        const ts = new Date().toISOString();
+        auditItems.push({
+          serial: dm.serial,
+          partNo: dm.partNo,
+          partName: dm.partName,
+          lot: dm.lot,
+          palletId: auditPalletId,
+          inAt: ts,
+          inBy: `${currentUser.name}(${currentUser.id})`
+        });
+        playBeep(true);
+        showAuditResult(true, `실사 등록 → ${auditPalletId}`, `품번: ${dm.partNo} | LOT: ${dm.lot} | S/N: ${dm.serial}`);
+        renderAuditView();
+      }
+
+      function handleAuditPayload(rawCode) {
+        const code = String(rawCode || '').trim();
+        if (!code) return;
+        const nowMs = Date.now();
+        if (lastScanCooldown.code === code && nowMs - lastScanCooldown.time < 1500) return;
+        lastScanCooldown = { code, time: nowMs };
+
+        const maybePallet = parsePalletCode(code);
+        if (maybePallet) {
+          auditPalletId = maybePallet;
+          playBeep(true);
+          showAuditResult(true, `실사 파렛트 전환: ${auditPalletId}`, '이후 스캔하는 모든 품목은 이 파렛트로 자동 등록됩니다.');
+          renderAuditView();
+          return;
+        }
+
+        const dm = parseHeadrestDataMatrix(code);
+        if (!dm) {
+          showAuditResult(false, '바코드 형식 오류', `인식할 수 없는 바코드입니다: ${code}`);
+          playBeep(false);
+          return;
+        }
+        processAuditItem(dm, false);
+      }
+
+      function renderAuditView() {
+        document.getElementById('audit-current-pallet').textContent = auditPalletId || '미지정 (파렛트 QR을 먼저 스캔하세요)';
+        document.getElementById('audit-scanned-count').textContent = `${auditItems.length} EA`;
+
+        // Build comparison map by palletId + partNo + lot
+        const diffMap = {};
+        state.items.forEach(it => {
+          const k = `${it.palletId}__${it.partNo}__${it.lot}`;
+          if (!diffMap[k]) diffMap[k] = { palletId: it.palletId, partNo: it.partNo, lot: it.lot, sys: 0, phy: 0 };
+          diffMap[k].sys += 1;
+        });
+        auditItems.forEach(it => {
+          const k = `${it.palletId}__${it.partNo}__${it.lot}`;
+          if (!diffMap[k]) diffMap[k] = { palletId: it.palletId, partNo: it.partNo, lot: it.lot, sys: 0, phy: 0 };
+          diffMap[k].phy += 1;
+        });
+
+        const rows = Object.values(diffMap).sort((a, b) => a.palletId.localeCompare(b.palletId) || a.partNo.localeCompare(b.partNo));
+        let mismatchCount = 0;
+        rows.forEach(r => { if (r.phy !== r.sys) mismatchCount += 1; });
+
+        document.getElementById('audit-kpi-sys').textContent = `${state.items.length} EA`;
+        document.getElementById('audit-kpi-phy').textContent = `${auditItems.length} EA`;
+        const totalDiff = auditItems.length - state.items.length;
+        document.getElementById('audit-kpi-diff').textContent = `${totalDiff > 0 ? '+' : ''}${totalDiff} EA`;
+        document.getElementById('audit-kpi-mismatch').textContent = `${mismatchCount} 건`;
+
+        const tbody = document.getElementById('audit-diff-tbody');
+        if (rows.length === 0) {
+          tbody.innerHTML = '<tr><td colspan="6" class="px-4 py-8 text-center text-slate-400">비교할 재고 내역이 없습니다.</td></tr>';
+          return;
+        }
+        tbody.innerHTML = rows.map(r => {
+          const d = r.phy - r.sys;
+          const badge = d === 0
+            ? '<span class="px-2 py-0.5 rounded bg-emerald-100 text-emerald-800 font-bold">0 (일치)</span>'
+            : (d > 0
+              ? `<span class="px-2 py-0.5 rounded bg-blue-100 text-blue-800 font-bold">+${d}</span>`
+              : `<span class="px-2 py-0.5 rounded bg-rose-100 text-rose-800 font-bold">${d}</span>`);
+          return `
+            <tr class="hover:bg-slate-50">
+              <td class="px-3 py-2 font-mono-code font-bold text-slate-900">${r.palletId}</td>
+              <td class="px-3 py-2 font-mono-code text-slate-800">${r.partNo}</td>
+              <td class="px-3 py-2 font-mono-code text-blue-700 font-semibold">${r.lot}</td>
+              <td class="px-3 py-2 text-right font-bold text-slate-700">${r.sys}</td>
+              <td class="px-3 py-2 text-right font-bold text-indigo-700">${r.phy}</td>
+              <td class="px-3 py-2 text-right">${badge}</td>
+            </tr>
+          `;
+        }).join('');
+      }
+
+      async function startAuditCamera() {
+        if (isAuditCameraRunning) return;
+        const container = document.getElementById('audit-camera-container');
+        container.classList.remove('hidden');
+        try {
+          if (!auditQrCode) {
+            auditQrCode = new Html5Qrcode('audit-qr-reader', {
+              formatsToSupport: [Html5QrcodeSupportedFormats.QR_CODE, Html5QrcodeSupportedFormats.DATA_MATRIX, Html5QrcodeSupportedFormats.CODE_128],
+              verbose: false
+            });
+          }
+          await auditQrCode.start(
+            { facingMode: 'environment' },
+            { fps: 12, qrbox: { width: 240, height: 240 }, aspectRatio: 1.333 },
+            (decodedText) => handleAuditPayload(decodedText),
+            () => {}
+          );
+          isAuditCameraRunning = true;
+          document.getElementById('audit-camera-btn-label').textContent = '카메라 끄기';
+        } catch (err) {
+          container.classList.add('hidden');
+          showToast('카메라 권한이 없거나 HTTPS 환경이 아닙니다.', 'warn');
+        }
+      }
+
+      async function stopAuditCamera() {
+        if (!isAuditCameraRunning || !auditQrCode) return;
+        try { await auditQrCode.stop(); } catch (e) { /* ignore */ }
+        isAuditCameraRunning = false;
+        document.getElementById('audit-camera-container').classList.add('hidden');
+        document.getElementById('audit-camera-btn-label').textContent = '카메라 켜기';
+      }
+
+      document.querySelectorAll('.audit-scan-mode-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          auditScanMethod = btn.dataset.auditScanMode;
+          document.querySelectorAll('.audit-scan-mode-btn').forEach(b => {
+            const act = b.dataset.auditScanMode === auditScanMethod;
+            b.className = act
+              ? 'audit-scan-mode-btn px-2.5 py-1.5 rounded-lg text-xs font-bold bg-white text-indigo-700 shadow-sm flex items-center gap-1'
+              : 'audit-scan-mode-btn px-2.5 py-1.5 rounded-lg text-xs font-semibold text-slate-600 flex items-center gap-1';
+          });
+          document.getElementById('audit-hid-container').classList.toggle('hidden', auditScanMethod !== 'hid');
+          document.getElementById('btn-audit-toggle-camera').classList.toggle('hidden', auditScanMethod !== 'camera');
+          if (auditScanMethod !== 'camera') stopAuditCamera();
+          if (auditScanMethod === 'manual') setTimeout(() => document.getElementById('audit-manual-input').focus(), 50);
+        });
+      });
+
+      document.getElementById('btn-audit-toggle-camera').addEventListener('click', () => {
+        if (isAuditCameraRunning) stopAuditCamera();
+        else startAuditCamera();
+      });
+
+      document.getElementById('audit-manual-form').addEventListener('submit', function (e) {
+        e.preventDefault();
+        const inp = document.getElementById('audit-manual-input');
+        const val = inp.value.trim();
+        if (!val) return;
+        inp.value = '';
+        handleAuditPayload(val);
+      });
+
+      document.querySelectorAll('[data-audit-quick]').forEach(btn => {
+        btn.addEventListener('click', () => handleAuditPayload(btn.dataset.auditQuick));
+      });
+
+      document.getElementById('btn-audit-sim-dm').addEventListener('click', () => {
+        if (!auditPalletId) auditPalletId = 'PLT-001';
+        const masterKeys = Object.keys(state.partMaster || {});
+        const parts = masterKeys.length ? masterKeys : ['88210-AA100'];
+        const p = parts[Math.floor(Math.random() * parts.length)];
+        const sn = 'AUD' + new Date().toISOString().slice(2, 10).replace(/-/g, '') + '-' + Math.floor(1000 + Math.random() * 9000);
+        handleAuditPayload(`${p}|LOT261124-AUD|${sn}`);
+      });
+
+      document.getElementById('btn-audit-reset').addEventListener('click', () => {
+        auditItems = [];
+        auditPalletId = null;
+        document.getElementById('audit-last-result').classList.add('hidden');
+        renderAuditView();
+        showToast('실사 내역이 초기화되었습니다.', 'info');
+      });
+
+      document.getElementById('btn-audit-sync').addEventListener('click', () => {
+        document.getElementById('audit-sync-confirm-text').textContent =
+          `실사 스캔된 ${auditItems.length} EA를 전산재고로 덮어쓰기 동기화하시겠습니까? (기존 전산재고 ${state.items.length} EA 대체)`;
+        document.getElementById('audit-sync-modal').classList.remove('hidden');
+      });
+
+      document.getElementById('btn-audit-sync-cancel').addEventListener('click', () => {
+        document.getElementById('audit-sync-modal').classList.add('hidden');
+      });
+
+      document.getElementById('btn-audit-sync-confirm').addEventListener('click', () => {
+        const ts = new Date().toISOString();
+        state.items = auditItems.map(it => {
+          if (!state.pallets[it.palletId]) {
+            state.pallets[it.palletId] = { id: it.palletId, updatedAt: ts, updatedBy: currentUser.id };
+          } else {
+            state.pallets[it.palletId].updatedAt = ts;
+            state.pallets[it.palletId].updatedBy = currentUser.id;
+          }
+          return { ...it };
+        });
+        state.logs.unshift({
+          id: 'LOG-SYNC-' + Date.now(),
+          time: ts,
+          action: '실사동기화',
+          palletId: '전체',
+          partNo: '-',
+          lot: '-',
+          serial: `${auditItems.length} EA 반영`,
+          user: `${currentUser.name}(${currentUser.id})`
+        });
+        state.version = Date.now();
+        pushStateToCloud();
+        document.getElementById('audit-sync-modal').classList.add('hidden');
+        playBeep(true);
+        renderAll();
+        renderAuditView();
+        showToast('실사재고가 전산재고로 동기화되었습니다.', 'ok');
+      });
+
+      // Periodic background poll when cloud sync URL is configured
+      setInterval(() => {
+        if (syncUrl && currentUser) pullStateFromCloud(true);
+      }, 10000);
+
+      if (window.lucide) lucide.createIcons();
+    })();
+  </script>
+</body>
+</html>
